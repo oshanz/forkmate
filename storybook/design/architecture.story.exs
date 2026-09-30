@@ -18,7 +18,7 @@ defmodule ForkmateWeb.Storybook.Design.Architecture do
     assigns = assign(assigns, :nodes, nodes())
 
     ~H"""
-    <div class="prose max-w-3xl space-y-4 p-6">
+    <div data-theme="light" class="prose prose-slate max-w-3xl space-y-4 p-6 text-slate-800">
       <h2>A game is a tree of positions</h2>
       <p>
         Rewinding is client-side and writes nothing. Playing a different move from an earlier
@@ -45,7 +45,7 @@ defmodule ForkmateWeb.Storybook.Design.Architecture do
 
   def render(%{tab: :aggregates} = assigns) do
     ~H"""
-    <div class="max-w-4xl space-y-6 p-6">
+    <div data-theme="light" class="max-w-4xl space-y-6 p-6">
       <table class="table table-zebra">
         <thead>
           <tr>
@@ -73,94 +73,36 @@ defmodule ForkmateWeb.Storybook.Design.Architecture do
 
   def render(assigns) do
     ~H"""
-    <div class="max-w-6xl space-y-4 p-6">
-      <svg viewBox="0 0 1000 410" role="img" aria-label="Command and event flow" class="w-full">
-        <defs>
-          <marker
-            id="arrow"
-            viewBox="0 0 10 10"
-            refX="9"
-            refY="5"
-            markerWidth="7"
-            markerHeight="7"
-            orient="auto-start-reverse"
+    <div data-theme="light" class="max-w-6xl space-y-4 p-6">
+      <div class="space-y-6">
+        <section class="rounded-box border border-slate-300 bg-white p-4">
+          <h3 class="mb-2 text-sm font-bold uppercase text-slate-600">Write side</h3>
+          <div
+            id="design-write-diagram"
+            phx-hook="Mermaid"
+            phx-update="ignore"
+            class="flex justify-center overflow-x-auto"
           >
-            <path d="M0 0 L10 5 L0 10 z" class="fill-base-content/70" />
-          </marker>
-        </defs>
+            {write_diagram()}
+          </div>
+        </section>
+        <section class="rounded-box border border-slate-300 bg-white p-4">
+          <h3 class="mb-2 text-sm font-bold uppercase text-slate-600">Read side</h3>
+          <div
+            id="design-read-diagram"
+            phx-hook="Mermaid"
+            phx-update="ignore"
+            class="flex justify-center overflow-x-auto"
+          >
+            {read_diagram()}
+          </div>
+        </section>
+      </div>
+      <p class="text-xs text-slate-600">
+        Rewind is a client-side view change and writes no events.
+      </p>
 
-        <text x="20" y="28" font-size="13" font-weight="700" class="fill-base-content/60">
-          WRITE SIDE
-        </text>
-        <text x="20" y="268" font-size="13" font-weight="700" class="fill-base-content/60">
-          READ SIDE
-        </text>
-        <line
-          x1="20"
-          x2="980"
-          y1="248"
-          y2="248"
-          stroke-dasharray="5 5"
-          class="stroke-base-content/30"
-        />
-
-        <.box x="20" y="50" w="150" title="LiveView" sub="board + branch graph" tone="primary" />
-        <.box x="230" y="50" w="140" title="Command" sub="MakeMove {from_node_id}" />
-        <.box x="430" y="50" w="140" title="Router" sub="Commanded dispatch" />
-        <.box
-          x="630"
-          y="40"
-          w="170"
-          h="100"
-          title="Game aggregate"
-          sub="one per game · stream id = game id"
-          tone="accent"
-        />
-        <.box x="860" y="50" w="120" title="Rules" sub="pure Elixir module" />
-
-        <.arrow d="M170 80 H230" />
-        <.arrow d="M370 80 H430" />
-        <.arrow d="M570 80 H630" />
-        <.arrow d="M800 80 H860" />
-
-        <.box x="630" y="180" w="170" title="Events" sub="MoveMade · BranchCreated · GameEnded" />
-        <.arrow d="M715 140 V180" />
-
-        <.box
-          x="430"
-          y="180"
-          w="140"
-          title="EventStore"
-          sub="Postgres · forkmate_eventstore"
-          tone="neutral"
-        />
-        <.arrow d="M630 210 H570" />
-
-        <.box x="430" y="290" w="140" title="Projectors" sub="commanded_ecto_projections" />
-        <.box
-          x="630"
-          y="290"
-          w="140"
-          title="Repo"
-          sub="games · nodes · player_stats"
-          tone="neutral"
-        />
-        <.box x="230" y="290" w="140" title="PubSub" sub="game:{id} topic" />
-        <.box x="20" y="290" w="150" title="LiveView" sub="players + spectators" tone="primary" />
-        <.box x="830" y="290" w="150" title="Timeout manager" sub="dispatches ClaimTimeout" />
-
-        <.arrow d="M500 240 V290" />
-        <.arrow d="M570 320 H630" />
-        <.arrow d="M430 320 H370" />
-        <.arrow d="M230 320 H170" />
-        <.arrow d="M905 290 V210 H800" dashed />
-
-        <text x="20" y="390" font-size="12" class="fill-base-content/70">
-          Rewind is a client-side view change and writes no events.
-        </text>
-      </svg>
-
-      <ol class="list-decimal space-y-1 pl-6 text-sm">
+      <ol class="list-decimal space-y-1 pl-6 text-sm text-slate-800">
         <li>The player's move becomes <code>MakeMove</code> with the node it starts from.</li>
         <li>The aggregate asks the rules module, then emits events carrying SAN, FEN and clocks.</li>
         <li>
@@ -175,68 +117,27 @@ defmodule ForkmateWeb.Storybook.Design.Architecture do
     """
   end
 
-  attr :x, :string, required: true
-  attr :y, :string, required: true
-  attr :w, :string, default: "140"
-  attr :h, :string, default: "60"
-  attr :title, :string, required: true
-  attr :sub, :string, default: nil
-  attr :tone, :string, default: "base"
-
-  defp box(assigns) do
-    ~H"""
-    <g transform={"translate(#{@x} #{@y})"}>
-      <rect
-        width={@w}
-        height={@h}
-        rx="8"
-        stroke-width="1.5"
-        class={
-          case @tone do
-            "primary" -> "fill-primary/15 stroke-primary"
-            "accent" -> "fill-accent/15 stroke-accent"
-            "neutral" -> "fill-neutral/20 stroke-neutral"
-            _ -> "fill-base-200 stroke-base-content/40"
-          end
-        }
-      />
-      <text
-        x={String.to_integer(@w) / 2}
-        y="24"
-        text-anchor="middle"
-        font-size="14"
-        font-weight="600"
-        class="fill-base-content"
-      >
-        {@title}
-      </text>
-      <text
-        :if={@sub}
-        x={String.to_integer(@w) / 2}
-        y="43"
-        text-anchor="middle"
-        font-size="10"
-        class="fill-base-content/70"
-      >
-        {@sub}
-      </text>
-    </g>
+  defp write_diagram do
+    """
+    flowchart TB
+      lv[LiveView<br/>board + branch graph] --> cmd[Command<br/>MakeMove from_node_id]
+      cmd --> router[Router<br/>Commanded dispatch]
+      router --> agg[Game aggregate<br/>stream id = game id]
+      agg <--> rules[Rules<br/>pure Elixir]
+      agg --> events[Events<br/>MoveMade, BranchCreated,<br/>GameEnded]
+      events --> store[(EventStore<br/>forkmate_eventstore)]
     """
   end
 
-  attr :d, :string, required: true
-  attr :dashed, :boolean, default: false
-
-  defp arrow(assigns) do
-    ~H"""
-    <path
-      d={@d}
-      fill="none"
-      stroke-width="1.75"
-      marker-end="url(#arrow)"
-      stroke-dasharray={@dashed && "5 4"}
-      class="stroke-base-content/70"
-    />
+  defp read_diagram do
+    """
+    flowchart TB
+      store[(EventStore)] --> proj[Projectors<br/>commanded_ecto_projections]
+      proj --> repo[(Repo<br/>games, nodes, player_stats)]
+      proj --> pubsub[PubSub<br/>game:id topic]
+      pubsub --> lv[LiveView<br/>players + spectators]
+      store -.-> timeout[Timeout manager]
+      timeout -.->|ClaimTimeout| agg[Game aggregate]
     """
   end
 

@@ -26,11 +26,20 @@ The aim is an online chess game where every game is an append-only event stream,
 
 A game is a tree of positions in one stream: rewinding means choosing an earlier node, and playing a different move from it starts a branch.
 
+```mermaid
+flowchart TB
+  start((Start)) --> e4["1.e4"]
+  start -->|branch| d4["1.d4"]
+  d4 --> d5["1...d5"]
+  e4 --> e5["1...e5"]
+  e4 -->|branch| c5["1...c5"]
+  c5 --> nf3b["2.Nf3"]
+  e5 --> nf3["2.Nf3"]
+  nf3 --> nc6["2...Nc6"]
+  nc6 --> bb5["3.Bb5"]
 ```
-Start ── 1.e4 ── 1...e5 ── 2.Nf3 ── 2...Nc6 ── 3.Bb5     main line
-  │        └───── 1...c5 ── 2.Nf3                         branch from 1.e4
-  └─ 1.d4 ── 1...d5                                        branch from the start position
-```
+
+The longest path (Start to 3.Bb5) is the main line.
 
 Each fork is a position that has a second child; the overview draws every path from the start position.
 

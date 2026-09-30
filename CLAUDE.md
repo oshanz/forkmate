@@ -32,4 +32,6 @@ Key design decisions from that doc:
 
 - Standard Phoenix 1.8 layout under `lib/forkmate_web/`; only the default `PageController` exists so far. Tailwind has two profiles, `forkmate` and `storybook`.
 - UI is developed in Phoenix Storybook at `/storybook` (content in `storybook/`; `game/*` has one story per component, `design/*` has architecture and game-screen pages).
+- Architecture diagrams are Mermaid, not hand-drawn SVG. `storybook/design/architecture.story.exs` puts the source in a `<div phx-hook="Mermaid" phx-update="ignore">`; the hook in `assets/js/storybook.js` loads mermaid from a CDN (there is no npm setup). Keep diagrams small and top-to-bottom, since wide ones get scaled down until the text is unreadable, and Mermaid ignores a subgraph's `direction` when edges cross its boundary. `branch_graph` stays SVG because it is a real UI component.
+- Storybook pages outside the `forkmate` sandbox follow the OS `prefers-color-scheme`, so a light page can get the dark daisyUI theme and pale, unreadable text. Put `data-theme="light"` on a story's root element.
 - `ForkmateWeb.GameComponents` holds the presentational chess components (board from FEN, move list, clock, branch graph, etc.). They only render data passed in and never run chess rules. When changing one, update its story in `storybook/game/`.
