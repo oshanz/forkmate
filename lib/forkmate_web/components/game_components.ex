@@ -37,6 +37,15 @@ defmodule ForkmateWeb.GameComponents do
   attr :last_move, :any, default: nil, doc: "`{from, to}` squares of the move that led here"
   attr :selected, :string, default: nil, doc: "square of the piece being moved"
   attr :targets, :list, default: [], doc: "squares the selected piece may move to"
+
+  attr :promotion_targets, :list,
+    default: [],
+    doc: "subset of `targets` where the move promotes; drawn with a ♛ badge"
+
+  attr :guide, :boolean,
+    default: false,
+    doc: "guide mode: tint every target square and draw a line along each direction"
+
   attr :check, :string, default: nil, doc: "square of the king in check"
   attr :on_select, :any, default: nil, doc: "event name or JS command for square clicks"
   attr :class, :any, default: nil
@@ -48,7 +57,8 @@ defmodule ForkmateWeb.GameComponents do
       assign(assigns,
         squares: for(rank <- 8..1//-1, file <- 0..7, do: {file, rank}),
         pieces: pieces,
-        last_squares: List.wrap(assigns.last_move && Tuple.to_list(assigns.last_move))
+        last_squares: List.wrap(assigns.last_move && Tuple.to_list(assigns.last_move)),
+        rays: if(assigns.guide, do: guide_rays(assigns), else: [])
       )
 
     ~H"""
@@ -73,6 +83,14 @@ defmodule ForkmateWeb.GameComponents do
             phx-click={@on_select}
             phx-value-square={square}
             class={@on_select && "cursor-pointer"}
+          />
+          <rect
+            :if={@guide && square in @targets}
+            width="1"
+            height="1"
+            fill={if piece, do: "#f56565", else: "#48bb78"}
+            fill-opacity="0.4"
+            pointer-events="none"
           />
           <rect
             :if={square in @last_squares}
@@ -121,6 +139,17 @@ defmodule ForkmateWeb.GameComponents do
             fill-opacity="0.3"
             pointer-events="none"
           />
+          <text
+            :if={square in @promotion_targets}
+            x="0.86"
+            y="0.28"
+            text-anchor="middle"
+            font-size="0.3"
+            pointer-events="none"
+            class="fill-base-content"
+          >
+            {glyph("q")}
+          </text>
           <circle
             :if={square in @targets && piece}
             cx="0.5"
@@ -128,11 +157,23 @@ defmodule ForkmateWeb.GameComponents do
             r="0.45"
             fill="none"
             stroke="#1a1a1a"
-            stroke-opacity="0.35"
+            stroke-opacity="0.45"
             stroke-width="0.09"
             pointer-events="none"
           />
         </g>
+        <line
+          :for={{x1, y1, x2, y2} <- @rays}
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke="#2f855a"
+          stroke-opacity="0.55"
+          stroke-width="0.1"
+          stroke-linecap="round"
+          pointer-events="none"
+        />
         <text
           :for={i <- 0..7}
           x={i + 0.5}
@@ -181,6 +222,33 @@ defmodule ForkmateWeb.GameComponents do
 
     cells
   end
+
+  # One line per straight direction (rank, file or diagonal) from the selected
+  # square to the farthest target in that direction. Pure geometry: which
+  # squares are targets still comes from the aggregate. Knight jumps are not
+  # straight, so they get no line.
+  defp guide_rays(%{selected: nil}), do: []
+
+  defp guide_rays(%{selected: selected, targets: targets, orientation: orientation}) do
+    {sf, sr} = square_coords(selected)
+
+    targets
+    |> Enum.map(&square_coords/1)
+    |> Enum.map(fn {f, r} -> {f - sf, r - sr} end)
+    |> Enum.filter(fn {df, dr} -> straight?(df, dr) end)
+    |> Enum.group_by(fn {df, dr} -> {sign(df), sign(dr)} end)
+    |> Enum.map(fn {_dir, offsets} ->
+      {df, dr} = Enum.max_by(offsets, fn {df, dr} -> max(abs(df), abs(dr)) end)
+
+      {col(sf, orientation) + 0.5, row(sr, orientation) + 0.5, col(sf + df, orientation) + 0.5,
+       row(sr + dr, orientation) + 0.5}
+    end)
+  end
+
+  defp straight?(df, dr), do: (df == 0 or dr == 0 or abs(df) == abs(dr)) and {df, dr} != {0, 0}
+  defp sign(n), do: if(n > 0, do: 1, else: if(n < 0, do: -1, else: 0))
+
+  defp square_coords(<<file, rank>>), do: {file - ?a, rank - ?0}
 
   defp col(file, :white), do: file
   defp col(file, :black), do: 7 - file
@@ -326,15 +394,28 @@ defmodule ForkmateWeb.GameComponents do
   # Controls, offers and result
   # ---------------------------------------------------------------------------
 
-  @doc "Resign and draw controls under the board."
+  @doc "Guide toggle, resign and draw controls under the board."
+  attr :guide, :boolean, default: false, doc: "true when guide mode shows legal moves"
   attr :draw_pending, :boolean, default: false, doc: "true after you offered a draw"
   attr :disabled, :boolean, default: false
   attr :on_resign, :any, default: "resign"
   attr :on_offer_draw, :any, default: "offer_draw"
+  attr :on_toggle_guide, :any, default: "toggle_guide"
 
   def game_controls(assigns) do
     ~H"""
     <div class="flex gap-2">
+      <button
+        type="button"
+        class={["btn btn-sm", @guide && "btn-primary"]}
+        phx-click={@on_toggle_guide}
+        aria-pressed={to_string(@guide)}
+      >
+        <span aria-hidden="true">{if @guide, do: "💡", else: "○"}</span>
+        Guide {if @guide,
+          do: "on",
+          else: "off"}
+      </button>
       <button
         type="button"
         class="btn btn-sm"
@@ -352,6 +433,22 @@ defmodule ForkmateWeb.GameComponents do
         Resign
       </button>
     </div>
+    """
+  end
+
+  @doc "Status line under the board while guide mode is on."
+  attr :piece, :string, default: nil, doc: "name of the selected piece, e.g. `Nb8`"
+  attr :count, :integer, default: 0, doc: "number of legal moves for it"
+
+  def guide_status(assigns) do
+    ~H"""
+    <p class="text-sm opacity-80" role="status" aria-live="polite">
+      <%= if @piece do %>
+        Guide on · {@count} {if @count == 1, do: "move", else: "moves"} for {@piece}
+      <% else %>
+        Guide on · select a piece to see its moves
+      <% end %>
+    </p>
     """
   end
 

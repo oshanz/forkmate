@@ -26,7 +26,7 @@ Key design decisions from that doc:
 - `Forkmate.Repo` (Ecto) holds read models and projections.
 - `Forkmate.EventStore` (`lib/forkmate/event_store.ex`) is a separate database. In prod it uses `EVENTSTORE_DATABASE_URL` (falls back to `DATABASE_URL`) and `EVENTSTORE_POOL_SIZE`.
 - `Forkmate.Application` starts the event store only when `:start_event_store` is true. `config/test.exs` sets it to `false`, so tests that need it must start it themselves.
-- No `mix event_store.*` aliases are defined. Check `mix help | grep event_store` before assuming the store's schema is initialised.
+- `mix ecto.setup` (and so `mix setup`) also runs `event_store.create` and `event_store.init`; `ecto.reset` runs `event_store.drop`. Both are idempotent.
 
 ### Web layer and design system
 
