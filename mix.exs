@@ -49,6 +49,7 @@ defmodule Forkmate.MixProject do
       {:phoenix_live_view, "~> 1.1.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:phoenix_storybook, "~> 1.5"},
       {:eventstore_dashboard, "~> 0.2.2"},
       {:commanded, "~> 1.4"},
       {:commanded_eventstore_adapter, "~> 1.4"},
@@ -87,9 +88,10 @@ defmodule Forkmate.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind forkmate", "esbuild forkmate"],
+      "assets.build": ["compile", "tailwind forkmate", "tailwind storybook", "esbuild forkmate"],
       "assets.deploy": [
         "tailwind forkmate --minify",
+        "tailwind storybook --minify",
         "esbuild forkmate --minify",
         "phx.digest"
       ],

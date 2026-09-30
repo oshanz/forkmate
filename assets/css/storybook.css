@@ -1,0 +1,4 @@
+/* PhoenixStorybook loads this file instead of app.css, so reuse app.css
+   (plugins, themes, variants) and add the stories as a Tailwind source. */
+@import "./app.css";
+@source "../../storybook";

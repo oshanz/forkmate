@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Start the Docker services (Postgres), wait until healthy, then run the Phoenix server.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+docker compose up -d --wait
+
+# Idempotent: installs deps, creates/migrates DBs, seeds, builds assets.
+mix setup
+
+exec iex -S mix phx.server

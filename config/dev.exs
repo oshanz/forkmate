@@ -34,7 +34,8 @@ config :forkmate, ForkmateWeb.Endpoint,
   secret_key_base: "mELsDtCSV4GuKnNxFAy8Eb20cNVr36dRRsGVzoPQ76KH0rkFr17K5oDFSsJMsPBt",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:forkmate, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:forkmate, ~w(--watch)]}
+    tailwind: {Tailwind, :install_and_run, [:forkmate, ~w(--watch)]},
+    storybook_tailwind: {Tailwind, :install_and_run, [:storybook, ~w(--watch)]}
   ]
 
 # ## SSL Support
@@ -71,7 +72,9 @@ config :forkmate, ForkmateWeb.Endpoint,
       ~r"priv/gettext/.*\.po$"E,
       # Router, Controllers, LiveViews and LiveComponents
       ~r"lib/forkmate_web/router\.ex$"E,
-      ~r"lib/forkmate_web/(controllers|live|components)/.*\.(ex|heex)$"E
+      ~r"lib/forkmate_web/(controllers|live|components)/.*\.(ex|heex)$"E,
+      # Storybook stories
+      ~r"storybook/.*\.exs$"E
     ]
   ]
 

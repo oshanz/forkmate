@@ -33,6 +33,17 @@ defmodule ForkmateWeb.Router do
     # you can use Plug.BasicAuth to set up some basic authentication
     # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
+    import PhoenixStorybook.Router
+
+    scope "/" do
+      storybook_assets()
+    end
+
+    scope "/", ForkmateWeb do
+      pipe_through :browser
+
+      live_storybook "/storybook", backend_module: ForkmateWeb.Storybook
+    end
 
     scope "/dev" do
       pipe_through :browser
