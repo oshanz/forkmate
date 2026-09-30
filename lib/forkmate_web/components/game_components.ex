@@ -521,6 +521,12 @@ defmodule ForkmateWeb.GameComponents do
   @step_y 56
   @pad_x 44
   @pad_y 36
+  # Bird view swaps each dot for a mini board, so the grid needs more room.
+  @bird_step_x 104
+  @bird_step_y 120
+  @bird_pad_x 60
+  @bird_pad_y 60
+  @bird_board 76
 
   @doc """
   Git-style overview of every branch in a game.
@@ -531,11 +537,17 @@ defmodule ForkmateWeb.GameComponents do
   parent's lane, so the main line is the top lane and every further child opens a new lane.
 
   `cursors` marks where each player is looking, e.g. `%{white: "n3", black: "n5"}`.
+
+  With `birdview` on, every node that has a `:fen` is drawn as a small board instead of a
+  dot (the optional `:last_move` `{from, to}` is highlighted on it, and the piece that moved is
+  marked as selected). Nodes without a
+  `:fen`, such as the start position when the FEN is unknown, stay as dots.
   """
   attr :id, :string, default: "branch-graph"
   attr :nodes, :list, required: true
   attr :current, :string, default: nil, doc: "id of the node shown on the board"
   attr :cursors, :map, default: %{}
+  attr :birdview, :boolean, default: false, doc: "draw every node as a small board"
   attr :on_select, :any, default: nil, doc: "event name or JS command; sends `phx-value-id`"
 
   def branch_graph(assigns) do
@@ -543,14 +555,17 @@ defmodule ForkmateWeb.GameComponents do
     by_id = Map.new(placed, &{&1.id, &1})
     max_ply = placed |> Enum.map(& &1.ply) |> Enum.max(fn -> 0 end)
     lanes = placed |> Enum.map(& &1.lane) |> Enum.max(fn -> 0 end)
+    grid = grid(assigns.birdview)
 
     assigns =
       assign(assigns,
         placed: placed,
+        grid: grid,
+        board_size: @bird_board,
         edges: for(n <- placed, n.parent_id, do: {n, by_id[n.parent_id]}),
         main_ids: main_line_ids(placed),
-        width: @pad_x * 2 + max_ply * @step_x,
-        height: @pad_y * 2 + lanes * @step_y
+        width: grid.pad_x * 2 + max_ply * grid.step_x,
+        height: grid.pad_y * 2 + lanes * grid.step_y
       )
 
     ~H"""
@@ -566,43 +581,86 @@ defmodule ForkmateWeb.GameComponents do
       >
         <path
           :for={{node, parent} <- @edges}
-          d={edge_path(parent, node)}
+          d={edge_path(parent, node, @grid)}
           fill="none"
           stroke-width={if node.id in @main_ids, do: 3, else: 2}
           class={if node.id in @main_ids, do: "stroke-primary", else: "stroke-base-content/40"}
         />
         <g
           :for={node <- @placed}
-          transform={"translate(#{x(node)} #{y(node)})"}
+          transform={"translate(#{x(node, @grid)} #{y(node, @grid)})"}
           phx-click={@on_select}
           phx-value-id={node.id}
           class={@on_select && "cursor-pointer"}
         >
           <title>{node_title(node)}</title>
-          <circle
-            :if={node.id == @current}
-            r="14"
-            fill="none"
-            stroke-width="2"
-            class="stroke-accent"
-          />
-          <circle
-            r="9"
-            stroke-width="2"
-            class={[
-              "stroke-base-content",
-              if(node.mover == :white, do: "fill-white", else: "fill-neutral")
-            ]}
-          />
-          <text y="26" text-anchor="middle" font-size="11" class="fill-base-content font-mono">
+          <% mini? = @birdview && Map.get(node, :fen) %>
+          <%= if mini? do %>
+            <rect
+              :if={node.id == @current}
+              x={-@board_size / 2 - 4}
+              y={-@board_size / 2 - 4}
+              width={@board_size + 8}
+              height={@board_size + 8}
+              rx="6"
+              fill="none"
+              stroke-width="2"
+              class="stroke-accent"
+            />
+            <foreignObject
+              x={-@board_size / 2}
+              y={-@board_size / 2}
+              width={@board_size}
+              height={@board_size}
+            >
+              <div class="size-full">
+                <.board
+                  id={"#{@id}-board-#{node.id}"}
+                  fen={node.fen}
+                  last_move={Map.get(node, :last_move)}
+                  selected={moved_square(node)}
+                  class="rounded-sm shadow-none"
+                />
+              </div>
+            </foreignObject>
+          <% else %>
+            <circle
+              :if={node.id == @current}
+              r="14"
+              fill="none"
+              stroke-width="2"
+              class="stroke-accent"
+            />
+            <circle
+              r="9"
+              stroke-width="2"
+              class={[
+                "stroke-base-content",
+                if(node.mover == :white, do: "fill-white", else: "fill-neutral")
+              ]}
+            />
+          <% end %>
+          <text
+            y={if mini?, do: @board_size / 2 + 16, else: 26}
+            text-anchor="middle"
+            font-size="11"
+            class="fill-base-content font-mono"
+          >
             {node.san}
           </text>
-          <text :if={badge(node)} x="18" y="4" font-size="13" font-weight="700" class="fill-error">
+          <text
+            :if={badge(node)}
+            x={if mini?, do: @board_size / 2 + 4, else: 18}
+            y={if mini?, do: -@board_size / 2 + 12, else: 4}
+            font-size="13"
+            font-weight="700"
+            class="fill-error"
+          >
             {badge(node)}
           </text>
           <text
             :for={{color, i} <- cursor_colors(@cursors, node.id)}
-            y={-16 - i * 12}
+            y={if(mini?, do: -@board_size / 2 - 8, else: -16) - i * 12}
             text-anchor="middle"
             font-size="10"
             class="fill-accent font-semibold"
@@ -612,6 +670,27 @@ defmodule ForkmateWeb.GameComponents do
         </g>
       </svg>
     </div>
+    """
+  end
+
+  @doc """
+  The bird view switch for the branch panel header. Sends `on_toggle` when clicked; the
+  parent owns the state and passes it back as `on` (and as `birdview` to `branch_graph/1`).
+  """
+  attr :on, :boolean, default: false
+  attr :on_toggle, :any, default: "toggle_birdview"
+
+  def birdview_toggle(assigns) do
+    ~H"""
+    <button
+      type="button"
+      role="switch"
+      aria-checked={to_string(@on)}
+      phx-click={@on_toggle}
+      class={["btn btn-xs", if(@on, do: "btn-primary", else: "btn-outline")]}
+    >
+      Bird view
+    </button>
     """
   end
 
@@ -647,16 +726,25 @@ defmodule ForkmateWeb.GameComponents do
 
   defp main_line_ids(placed), do: for(n <- placed, n.lane == 0, into: MapSet.new(), do: n.id)
 
-  defp x(node), do: @pad_x + node.ply * @step_x
-  defp y(node), do: @pad_y + node.lane * @step_y
+  defp moved_square(%{last_move: {_from, to}}), do: to
+  defp moved_square(_node), do: nil
 
-  defp edge_path(parent, node) when parent.lane == node.lane do
-    "M#{x(parent)} #{y(parent)} L#{x(node)} #{y(node)}"
+  defp grid(true),
+    do: %{step_x: @bird_step_x, step_y: @bird_step_y, pad_x: @bird_pad_x, pad_y: @bird_pad_y}
+
+  defp grid(false), do: %{step_x: @step_x, step_y: @step_y, pad_x: @pad_x, pad_y: @pad_y}
+
+  defp x(node, grid), do: grid.pad_x + node.ply * grid.step_x
+  defp y(node, grid), do: grid.pad_y + node.lane * grid.step_y
+
+  defp edge_path(parent, node, grid) when parent.lane == node.lane do
+    "M#{x(parent, grid)} #{y(parent, grid)} L#{x(node, grid)} #{y(node, grid)}"
   end
 
-  defp edge_path(parent, node) do
-    mid = div(x(parent) + x(node), 2)
-    "M#{x(parent)} #{y(parent)} C#{mid} #{y(parent)} #{mid} #{y(node)} #{x(node)} #{y(node)}"
+  defp edge_path(parent, node, grid) do
+    {px, py, nx, ny} = {x(parent, grid), y(parent, grid), x(node, grid), y(node, grid)}
+    mid = div(px + nx, 2)
+    "M#{px} #{py} C#{mid} #{py} #{mid} #{ny} #{nx} #{ny}"
   end
 
   defp node_title(%{mover: nil}), do: "Start position"
