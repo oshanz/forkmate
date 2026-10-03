@@ -1,6 +1,6 @@
 <h1 align="center">🚧 UNDER DEVELOPMENT 🚧</h1>
 
-<p align="center"><strong>This project is a work in progress and is not yet playable.</strong></p>
+<p align="center"><strong>This project is a work in progress and is not yet playable.<br>Features described below are planned, and anything may change.</strong></p>
 
 ---
 
