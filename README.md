@@ -23,6 +23,10 @@ An online chess game where every game is an append-only event stream, and any ga
 
 A game is a tree of positions, not a line. Rewinding is client-side and writes nothing. Playing a move from an earlier position appends an event, and if that position already has a continuation it becomes a new branch. Only the player whose colour is to move at a position may branch from it.
 
+![Birdview: a git-style overview of every branch in a game, each node drawn as a small board](docs/birdview.png)
+
+*Birdview in Phoenix Storybook (`/storybook`): every node is a small board, and the highlighted ring marks the current position.*
+
 **Later:** matchmaking and lobbies, Elo ratings, tournaments, engine analysis, anti-cheat signals, variants such as Chess960.
 
 ## Architecture
