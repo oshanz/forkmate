@@ -284,4 +284,140 @@ defmodule Forkmate.Games.GameTest do
                Game.execute(game, %AcceptDraw{game_id: @game_id, player_id: @white})
     end
   end
+
+  describe "replay from the event store" do
+    defp roundtrip(%module{} = event) do
+      serialized = EventStore.JsonSerializer.serialize(event)
+      EventStore.JsonSerializer.deserialize(serialized, type: Atom.to_string(module))
+    end
+
+    defp start_game_state do
+      cmd = %StartGame{game_id: @game_id, white_player_id: @white, black_player_id: @black}
+      {:ok, [started]} = Game.execute(%Game{}, cmd)
+      {Game.apply(%Game{}, started), started.root_node_id}
+    end
+
+    test "applies JSON-deserialized MoveMade events" do
+      {game, root_id} = start_game_state()
+
+      cmd = %MakeMove{
+        game_id: @game_id,
+        from_node_id: root_id,
+        from: "e2",
+        to: "e4",
+        player_id: @white
+      }
+
+      {:ok, [move]} = Game.execute(game, cmd)
+      game = Game.apply(game, roundtrip(move))
+
+      assert game.nodes[move.node_id].mover == :white
+    end
+
+    test "applies JSON-deserialized game-level GameEnded events" do
+      {game, _root_id} = start_game_state()
+
+      {:ok, [ended]} = Game.execute(game, %Resign{game_id: @game_id, player_id: @white})
+      game = Game.apply(game, roundtrip(ended))
+
+      assert game.game_status == :ended
+    end
+
+    test "applies JSON-deserialized branch-level GameEnded events" do
+      {game, root_id} = start_game_state()
+
+      cmd = %MakeMove{
+        game_id: @game_id,
+        from_node_id: root_id,
+        from: "e2",
+        to: "e4",
+        player_id: @white
+      }
+
+      {:ok, [move]} = Game.execute(game, cmd)
+      game = Game.apply(game, move)
+
+      ended = %GameEnded{
+        game_id: @game_id,
+        node_id: move.node_id,
+        reason: :checkmate,
+        winner: :white,
+        scope: :branch
+      }
+
+      game = Game.apply(game, roundtrip(ended))
+
+      assert game.nodes[move.node_id].status == :checkmate
+    end
+  end
+
+  describe "MakeMove input validation" do
+    setup do
+      cmd = %StartGame{game_id: @game_id, white_player_id: @white, black_player_id: @black}
+      {:ok, [event]} = Game.execute(%Game{}, cmd)
+      [game: Game.apply(%Game{}, event), root_id: event.root_node_id]
+    end
+
+    test "rejects square names that do not exist", %{game: game, root_id: root_id} do
+      cmd = %MakeMove{
+        game_id: @game_id,
+        from_node_id: root_id,
+        from: "z9",
+        to: "e4",
+        player_id: @white
+      }
+
+      assert {:error, :illegal_move} = Game.execute(game, cmd)
+    end
+
+    test "rejects missing squares", %{game: game, root_id: root_id} do
+      cmd = %MakeMove{
+        game_id: @game_id,
+        from_node_id: root_id,
+        from: nil,
+        to: nil,
+        player_id: @white
+      }
+
+      assert {:error, :illegal_move} = Game.execute(game, cmd)
+    end
+
+    test "rejects a node_id that already exists", %{game: game, root_id: root_id} do
+      cmd = %MakeMove{
+        game_id: @game_id,
+        from_node_id: root_id,
+        node_id: root_id,
+        from: "e2",
+        to: "e4",
+        player_id: @white
+      }
+
+      assert {:error, :node_id_taken} = Game.execute(game, cmd)
+    end
+  end
+
+  describe "branch outcomes" do
+    test "insufficient material is reported with its own reason" do
+      cmd = %StartGame{
+        game_id: @game_id,
+        white_player_id: @white,
+        black_player_id: @black,
+        initial_fen: "4k3/8/8/8/8/8/4K3/4r3 w - - 0 1"
+      }
+
+      {:ok, [started]} = Game.execute(%Game{}, cmd)
+      game = Game.apply(%Game{}, started)
+
+      move = %MakeMove{
+        game_id: @game_id,
+        from_node_id: started.root_node_id,
+        from: "e2",
+        to: "e1",
+        player_id: @white
+      }
+
+      assert {:ok, [%MoveMade{}, %GameEnded{reason: :insufficient_material, scope: :branch}]} =
+               Game.execute(game, move)
+    end
+  end
 end

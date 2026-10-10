@@ -128,4 +128,73 @@ defmodule Forkmate.GamesTest do
     assert Enum.sort(targets) == ["e3", "e4"]
     assert Games.promotion_targets(root, "e2") == []
   end
+
+  test "a draw offer survives a move by the player who did not offer" do
+    game_id = "test-game-" <> Ecto.UUID.generate()
+
+    {:ok, _} =
+      Games.start_game(%{game_id: game_id, white_player_id: @white, black_player_id: @black})
+
+    [root] = Games.list_nodes(game_id)
+
+    assert :ok = Games.offer_draw(game_id, @black)
+
+    assert :ok =
+             Games.make_move(%{
+               game_id: game_id,
+               from_node_id: root.id,
+               from: "e2",
+               to: "e4",
+               player_id: @white
+             })
+
+    assert Games.get_game(game_id).draw_offered_by == @black
+  end
+
+  test "a draw offer is cleared when the offering player moves" do
+    game_id = "test-game-" <> Ecto.UUID.generate()
+
+    {:ok, _} =
+      Games.start_game(%{game_id: game_id, white_player_id: @white, black_player_id: @black})
+
+    [root] = Games.list_nodes(game_id)
+
+    assert :ok = Games.offer_draw(game_id, @white)
+
+    assert :ok =
+             Games.make_move(%{
+               game_id: game_id,
+               from_node_id: root.id,
+               from: "e2",
+               to: "e4",
+               player_id: @white
+             })
+
+    assert Games.get_game(game_id).draw_offered_by == nil
+  end
+
+  test "a drawn branch records why it ended" do
+    game_id = "test-game-" <> Ecto.UUID.generate()
+
+    {:ok, _} =
+      Games.start_game(%{
+        game_id: game_id,
+        white_player_id: @white,
+        black_player_id: @black,
+        initial_fen: "4k3/8/8/8/8/8/4K3/R7 w - - 99 80"
+      })
+
+    [root] = Games.list_nodes(game_id)
+
+    assert :ok =
+             Games.make_move(%{
+               game_id: game_id,
+               from_node_id: root.id,
+               from: "a1",
+               to: "a2",
+               player_id: @white
+             })
+
+    assert [_, %{status: "fifty_move"}] = Games.list_nodes(game_id)
+  end
 end

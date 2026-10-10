@@ -478,6 +478,7 @@ defmodule ForkmateWeb.GameComponents do
       :agreed_draw,
       :repetition,
       :fifty_move,
+      :insufficient_material,
       :timeout
     ],
     required: true
@@ -511,6 +512,7 @@ defmodule ForkmateWeb.GameComponents do
   defp reason_text(:agreed_draw), do: "Draw by agreement"
   defp reason_text(:repetition), do: "Threefold repetition"
   defp reason_text(:fifty_move), do: "Fifty-move rule"
+  defp reason_text(:insufficient_material), do: "Insufficient material"
   defp reason_text(:timeout), do: "Timeout"
 
   # ---------------------------------------------------------------------------

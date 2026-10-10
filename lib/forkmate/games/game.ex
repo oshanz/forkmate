@@ -82,7 +82,8 @@ defmodule Forkmate.Games.Game do
   def execute(%__MODULE__{} = game, %MakeMove{} = cmd) do
     with {:ok, parent_node} <- fetch_playable_node(game, cmd.from_node_id),
          :ok <- validate_player_turn(game, parent_node, cmd.player_id),
-         move <- Move.new(cmd.from, cmd.to, cmd.promotion),
+         :ok <- validate_new_node_id(game, cmd.node_id),
+         {:ok, move} <- parse_move(cmd),
          {:ok, next_position, meta} <- Rules.apply_move(parent_node.position, move) do
       build_move_events(game, parent_node, cmd, next_position, meta)
     end
@@ -205,6 +206,7 @@ defmodule Forkmate.Games.Game do
   end
 
   def apply(%__MODULE__{} = game, %MoveMade{} = event) do
+    event = %{event | mover: to_color(event.mover)}
     parent_node = Map.fetch!(game.nodes, event.parent_node_id)
     updated_parent = %{parent_node | children: [event.node_id | parent_node.children]}
 
@@ -233,12 +235,24 @@ defmodule Forkmate.Games.Game do
     %__MODULE__{game | nodes: nodes, draw_offered_by: new_draw_offer}
   end
 
-  def apply(%__MODULE__{} = game, %GameEnded{scope: :game}) do
+  def apply(%__MODULE__{} = game, %GameEnded{} = event) do
+    end_game(game, %{event | scope: to_scope(event.scope), reason: to_reason(event.reason)})
+  end
+
+  def apply(%__MODULE__{} = game, %DrawOffered{player_id: player_id}) do
+    %__MODULE__{game | draw_offered_by: player_id}
+  end
+
+  def apply(%__MODULE__{} = game, %DrawDeclined{}) do
+    %__MODULE__{game | draw_offered_by: nil}
+  end
+
+  defp end_game(%__MODULE__{} = game, %GameEnded{scope: :game}) do
     %__MODULE__{game | game_status: :ended, draw_offered_by: nil}
   end
 
-  def apply(%__MODULE__{} = game, %GameEnded{scope: :branch, node_id: node_id, reason: reason})
-      when is_binary(node_id) do
+  defp end_game(%__MODULE__{} = game, %GameEnded{scope: :branch, node_id: node_id, reason: reason})
+       when is_binary(node_id) do
     case Map.get(game.nodes, node_id) do
       nil ->
         game
@@ -257,15 +271,33 @@ defmodule Forkmate.Games.Game do
     end
   end
 
-  def apply(%__MODULE__{} = game, %DrawOffered{player_id: player_id}) do
-    %__MODULE__{game | draw_offered_by: player_id}
-  end
-
-  def apply(%__MODULE__{} = game, %DrawDeclined{}) do
-    %__MODULE__{game | draw_offered_by: nil}
-  end
-
   # --- Internal Helpers ---
+
+  defp parse_move(cmd) do
+    case Move.parse(cmd.from, cmd.to, cmd.promotion) do
+      {:ok, move} -> {:ok, move}
+      :error -> {:error, :illegal_move}
+    end
+  end
+
+  defp validate_new_node_id(_game, nil), do: :ok
+
+  defp validate_new_node_id(game, node_id) do
+    if Map.has_key?(game.nodes, node_id), do: {:error, :node_id_taken}, else: :ok
+  end
+
+  # Events read back from the event store are JSON-deserialized, so atom-valued
+  # fields arrive as strings.
+  defp to_color(color) when color in [:white, :black], do: color
+  defp to_color("white"), do: :white
+  defp to_color("black"), do: :black
+
+  defp to_scope(scope) when scope in [:game, :branch], do: scope
+  defp to_scope("game"), do: :game
+  defp to_scope("branch"), do: :branch
+
+  defp to_reason(reason) when is_atom(reason), do: reason
+  defp to_reason(reason) when is_binary(reason), do: String.to_existing_atom(reason)
 
   defp player_for_color(game, :white), do: game.white_player_id
   defp player_for_color(game, :black), do: game.black_player_id
@@ -359,7 +391,7 @@ defmodule Forkmate.Games.Game do
             %GameEnded{
               game_id: game.game_id,
               node_id: new_node_id,
-              reason: :agreed_draw,
+              reason: :insufficient_material,
               winner: nil,
               scope: :branch
             }

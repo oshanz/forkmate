@@ -14,7 +14,7 @@ defmodule Forkmate.Games do
 
   # --- Command Dispatch ---
 
-  @spec start_game(map()) :: :ok | {:error, term()}
+  @spec start_game(map()) :: {:ok, String.t()} | {:error, term()}
   def start_game(attrs) do
     game_id = Map.get(attrs, :game_id) || Map.get(attrs, "game_id") || Ecto.UUID.generate()
     white_player_id = Map.get(attrs, :white_player_id) || Map.get(attrs, "white_player_id")

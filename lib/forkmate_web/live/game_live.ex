@@ -6,6 +6,7 @@ defmodule ForkmateWeb.GameLive do
 
   alias Forkmate.Chess.{Position, Square}
   alias Forkmate.Games
+  alias Forkmate.Games.Events.MoveMade
   alias Forkmate.Games.ReadModels.Node
   alias ForkmateWeb.GameComponents
 
@@ -63,12 +64,14 @@ defmodule ForkmateWeb.GameLive do
   end
 
   @impl true
-  def handle_info({:game_updated, game_id, _event}, socket) do
+  def handle_info({:game_updated, game_id, event}, socket) do
     if socket.assigns.game_id == game_id do
       game = Games.get_game!(game_id)
-      # If current viewed node is the previous latest node, follow to the new node
+      # Follow to the new node if we were on the previous latest node, or on the
+      # node the move was just played from (a rewound player branching or continuing).
       view_node_id =
-        if socket.assigns.current_node_id == socket.assigns.game.current_node_id do
+        if socket.assigns.current_node_id == socket.assigns.game.current_node_id or
+             played_from?(event, socket.assigns.current_node_id) do
           game.current_node_id
         else
           socket.assigns.current_node_id
@@ -176,6 +179,13 @@ defmodule ForkmateWeb.GameLive do
 
   # --- Internal Helpers ---
 
+  defp find_node(all_nodes, candidate_ids) do
+    Enum.find_value(candidate_ids, fn id -> Enum.find(all_nodes, &(&1.id == id)) end)
+  end
+
+  defp played_from?(%MoveMade{parent_node_id: parent_id}, node_id), do: parent_id == node_id
+  defp played_from?(_event, _node_id), do: false
+
   defp select_square_if_piece(socket, square) do
     %{current_node: node, perspective: perspective} = socket.assigns
 
@@ -224,8 +234,7 @@ defmodule ForkmateWeb.GameLive do
     graph_nodes = Enum.map(all_nodes, &Node.to_component_map/1)
     fork_ids = Games.find_fork_node_ids(all_nodes)
 
-    current_node =
-      Enum.find(all_nodes, &(&1.id == node_id)) || List.last(all_nodes)
+    current_node = find_node(all_nodes, [node_id, game.current_node_id]) || List.last(all_nodes)
 
     current_node_id = (current_node && current_node.id) || game.root_node_id
     line_nodes = Games.get_line_nodes(all_nodes, current_node_id)
@@ -445,26 +454,25 @@ defmodule ForkmateWeb.GameLive do
     """
   end
 
+  @game_end_reasons %{
+    "checkmate" => :checkmate,
+    "stalemate" => :stalemate,
+    "resignation" => :resignation,
+    "agreed_draw" => :agreed_draw,
+    "fifty_move" => :fifty_move,
+    "repetition" => :repetition,
+    "insufficient_material" => :insufficient_material,
+    "timeout" => :timeout
+  }
+
   defp result_reason(%{status: "ended", end_reason: reason}, _) when is_binary(reason) do
-    case reason do
-      "checkmate" -> :checkmate
-      "stalemate" -> :stalemate
-      "resignation" -> :resignation
-      "agreed_draw" -> :agreed_draw
-      "fifty_move" -> :fifty_move
-      "repetition" -> :repetition
-      "timeout" -> :timeout
-      _ -> :agreed_draw
-    end
+    Map.get(@game_end_reasons, reason, :agreed_draw)
   end
 
+  defp result_reason(_, %Node{status: "resigned"}), do: :resignation
+
   defp result_reason(_, %Node{status: status}) when is_binary(status) do
-    case status do
-      "checkmate" -> :checkmate
-      "stalemate" -> :stalemate
-      "resigned" -> :resignation
-      _ -> :stalemate
-    end
+    Map.get(@game_end_reasons, status, :agreed_draw)
   end
 
   defp result_reason(_, _), do: :checkmate

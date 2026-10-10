@@ -76,18 +76,29 @@ defmodule Forkmate.Games.Projections.GameProjection do
     update_game_query =
       from(g in Game,
         where: g.id == ^event.game_id,
-        update: [
-          set: [
-            current_node_id: ^event.node_id,
-            current_fen: ^event.fen,
-            draw_offered_by: nil
-          ]
-        ]
+        update: [set: [current_node_id: ^event.node_id, current_fen: ^event.fen]]
       )
+
+    # A move withdraws only the mover's own pending draw offer, as in the aggregate.
+    clear_draw_offer_query =
+      case to_string(event.mover) do
+        "white" ->
+          from(g in Game,
+            where: g.id == ^event.game_id and g.draw_offered_by == g.white_player_id,
+            update: [set: [draw_offered_by: nil]]
+          )
+
+        "black" ->
+          from(g in Game,
+            where: g.id == ^event.game_id and g.draw_offered_by == g.black_player_id,
+            update: [set: [draw_offered_by: nil]]
+          )
+      end
 
     multi
     |> Ecto.Multi.insert(:new_node, node_changeset)
     |> Ecto.Multi.update_all(:update_game, update_game_query, [])
+    |> Ecto.Multi.update_all(:clear_draw_offer, clear_draw_offer_query, [])
   end)
 
   project(%GameEnded{} = event, _metadata, fn multi ->
@@ -117,6 +128,9 @@ defmodule Forkmate.Games.Projections.GameProjection do
           "checkmate" -> "checkmate"
           "stalemate" -> "stalemate"
           "resignation" -> "resigned"
+          "fifty_move" -> "fifty_move"
+          "repetition" -> "repetition"
+          "insufficient_material" -> "insufficient_material"
           _ -> "draw"
         end
 

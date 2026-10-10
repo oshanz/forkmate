@@ -66,7 +66,10 @@ defmodule Forkmate.Games.ReadModels.Node do
   defp status_atom("checkmate"), do: :checkmate
   defp status_atom("stalemate"), do: :stalemate
   defp status_atom("resigned"), do: :resigned
-  defp status_atom("draw"), do: :draw
+
+  defp status_atom(status) when status in ~w(draw fifty_move repetition insufficient_material),
+    do: :draw
+
   defp status_atom(_), do: :open
 
   defp last_move(%__MODULE__{from_square: f, to_square: t}) when is_binary(f) and is_binary(t) do

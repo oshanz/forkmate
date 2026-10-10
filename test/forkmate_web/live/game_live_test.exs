@@ -93,4 +93,79 @@ defmodule ForkmateWeb.GameLiveTest do
     view |> element("button[phx-click='resign']") |> render_click()
     assert has_element?(view, "[role='status']", "Black wins")
   end
+
+  test "the view follows a move played from the node being viewed", %{
+    conn: conn,
+    game_id: game_id
+  } do
+    {:ok, view, _html} = live(conn, ~p"/games/#{game_id}")
+
+    view |> element("rect[phx-value-square='e2']") |> render_click()
+    view |> element("rect[phx-value-square='e4']") |> render_click()
+
+    [root | _] = Games.list_nodes(game_id)
+    view |> element("g[phx-value-id='#{root.id}']") |> render_click()
+
+    view |> element("rect[phx-value-square='d2']") |> render_click()
+    view |> element("rect[phx-value-square='d4']") |> render_click()
+
+    d4 = Enum.find(Games.list_nodes(game_id), &(&1.san == "d4"))
+    assert :sys.get_state(view.pid).socket.assigns.current_node_id == d4.id
+  end
+
+  test "an unknown node param falls back to the game's current node", %{
+    conn: conn,
+    game_id: game_id
+  } do
+    [root] = Games.list_nodes(game_id)
+
+    play = fn from_node_id, from, to, player_id ->
+      :ok =
+        Games.make_move(%{
+          game_id: game_id,
+          from_node_id: from_node_id,
+          from: from,
+          to: to,
+          player_id: player_id
+        })
+    end
+
+    play.(root.id, "e2", "e4", "Player 1")
+    e4 = Enum.find(Games.list_nodes(game_id), &(&1.san == "e4"))
+    play.(e4.id, "e7", "e5", "Player 2")
+    play.(root.id, "d2", "d4", "Player 1")
+
+    game = Games.get_game(game_id)
+    {:ok, view, _html} = live(conn, ~p"/games/#{game_id}?node=bogus")
+
+    assert :sys.get_state(view.pid).socket.assigns.current_node_id == game.current_node_id
+  end
+
+  test "a branch drawn by the fifty-move rule is not reported as stalemate", %{conn: conn} do
+    game_id = "live-fifty-" <> Ecto.UUID.generate()
+
+    {:ok, ^game_id} =
+      Games.start_game(%{
+        game_id: game_id,
+        white_player_id: "Player 1",
+        black_player_id: "Player 2",
+        initial_fen: "4k3/8/8/8/8/8/4K3/R7 w - - 99 80"
+      })
+
+    [root] = Games.list_nodes(game_id)
+
+    :ok =
+      Games.make_move(%{
+        game_id: game_id,
+        from_node_id: root.id,
+        from: "a1",
+        to: "a2",
+        player_id: "Player 1"
+      })
+
+    {:ok, _view, html} = live(conn, ~p"/games/#{game_id}")
+
+    assert html =~ "Fifty-move rule"
+    refute html =~ "Stalemate"
+  end
 end

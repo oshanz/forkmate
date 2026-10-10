@@ -35,6 +35,24 @@ defmodule Forkmate.Chess.Move do
     }
   end
 
+  @doc """
+  Like `new/3`, but returns `:error` instead of raising when a square is not a
+  valid index or name.
+  """
+  @spec parse(term(), term(), term()) :: {:ok, t()} | :error
+  def parse(from, to, promotion \\ nil) do
+    with from_sq when is_integer(from_sq) <- to_index(from),
+         to_sq when is_integer(to_sq) <- to_index(to) do
+      {:ok, new(from_sq, to_sq, promotion)}
+    else
+      _ -> :error
+    end
+  end
+
+  defp to_index(sq) when is_binary(sq), do: Square.from_name(sq)
+  defp to_index(sq) when is_integer(sq), do: if(Square.valid?(sq), do: sq)
+  defp to_index(_), do: nil
+
   @spec to_uci(t()) :: String.t()
   def to_uci(%__MODULE__{from: from, to: to, promotion: promo}) do
     promo_str =
