@@ -47,7 +47,6 @@ defmodule ForkmateWeb.Storybook.Design.GameScreen do
         <div>
           <div class="mb-1 flex items-center justify-between">
             <h3 class="font-semibold">Branches</h3>
-            <.birdview_toggle on={@birdview?} />
           </div>
           <.branch_graph
             id="screen-branches"

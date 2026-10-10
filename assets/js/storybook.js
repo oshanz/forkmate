@@ -23,5 +23,9 @@
     },
   }
 
+  window.addEventListener("forkmate:fullscreen", e => {
+    if (document.fullscreenElement) { document.exitFullscreen() } else { e.target.requestFullscreen() }
+  })
+
   window.storybook = {Hooks}
 })()

@@ -8,6 +8,8 @@ defmodule ForkmateWeb.GameComponents do
   """
   use Phoenix.Component
 
+  alias Phoenix.LiveView.JS
+
   @files ~w(a b c d e f g h)
 
   @glyphs %{
@@ -67,7 +69,7 @@ defmodule ForkmateWeb.GameComponents do
       viewBox="0 0 8.6 8.6"
       role="img"
       aria-label="Chess board"
-      class={["w-full max-w-xl select-none rounded-box shadow-sm", @class]}
+      class={["w-full select-none rounded-box shadow-sm", @class]}
     >
       <g transform="translate(0.3 0.15)">
         <g
@@ -281,7 +283,7 @@ defmodule ForkmateWeb.GameComponents do
   def player_card(assigns) do
     ~H"""
     <div class={[
-      "flex items-center justify-between gap-3 rounded-box border px-3 py-2 transition-colors",
+      "flex items-center justify-between gap-3 rounded-box border px-3 py-2 transition-colors xl:px-4 xl:py-3 xl:text-lg",
       if(@active, do: "border-primary bg-primary/10", else: "border-base-300 bg-base-200"),
       @class
     ]}>
@@ -352,7 +354,7 @@ defmodule ForkmateWeb.GameComponents do
     assigns = assign(assigns, :rows, Enum.chunk_every(assigns.moves, 2))
 
     ~H"""
-    <ol class="grid grid-cols-[2.5rem_1fr_1fr] gap-y-0.5 text-sm">
+    <ol class="grid grid-cols-[2.5rem_1fr_1fr] gap-y-0.5 text-sm xl:text-base 2xl:text-lg">
       <li :for={[white | rest] <- @rows} class="col-span-3 grid grid-cols-subgrid items-center">
         <span class="pr-2 text-right text-base-content/50">{div(white.ply + 1, 2)}.</span>
         <.move_cell move={white} current={@current} forks={@forks} on_select={@on_select} />
@@ -387,6 +389,65 @@ defmodule ForkmateWeb.GameComponents do
       {@move.san}
       <span :if={@move.id in @forks} class="text-xs opacity-70" title="Branch point">⑂</span>
     </button>
+    """
+  end
+
+  # ---------------------------------------------------------------------------
+  # Sidebar panels
+  # ---------------------------------------------------------------------------
+
+  @doc "Sidebar card around `move_list/1`: title, the viewed node id, and a scrolling list."
+  attr :moves, :list, required: true
+  attr :current, :string, default: nil, doc: "id of the node being viewed"
+  attr :forks, :list, default: []
+  attr :on_select, :any, default: nil
+
+  def history_panel(assigns) do
+    ~H"""
+    <div class="flex min-h-0 flex-1 flex-col rounded-box border border-base-300 bg-base-200/50 p-4 xl:p-5">
+      <div class="mb-3 flex items-center justify-between border-b border-base-300 pb-2">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-base-content/70 xl:text-base">
+          Move History
+        </h2>
+        <span class="text-xs text-base-content/50">
+          Node: <span class="font-mono text-primary">{@current}</span>
+        </span>
+      </div>
+      <div class="max-h-64 min-h-0 flex-1 overflow-y-auto pr-1 lg:max-h-none">
+        <.move_list moves={@moves} current={@current} forks={@forks} on_select={@on_select} />
+      </div>
+    </div>
+    """
+  end
+
+  @doc "Sidebar card around `branch_graph/1`: title with node count, hint, toolbar and graph."
+  attr :id, :string, default: "branch-panel"
+  attr :nodes, :list, required: true
+  attr :current, :string, default: nil
+  attr :cursors, :map, default: %{}
+  attr :birdview, :boolean, default: false
+  attr :on_select, :any, default: nil
+  attr :on_toggle_birdview, :any, default: "toggle_birdview"
+
+  def branch_panel(assigns) do
+    ~H"""
+    <div class="flex min-h-0 flex-1 flex-col rounded-box border border-base-300 bg-base-200/50 p-4 xl:p-5">
+      <div class="mb-3 flex items-center justify-between border-b border-base-300 pb-2">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-base-content/70 xl:text-base">
+          Branch Overview ({length(@nodes)} nodes)
+        </h2>
+        <span class="text-xs text-base-content/50">Click any node to rewind or branch</span>
+      </div>
+      <.branch_graph
+        id={@id}
+        nodes={@nodes}
+        current={@current}
+        cursors={@cursors}
+        birdview={@birdview}
+        on_select={@on_select}
+        on_toggle_birdview={@on_toggle_birdview}
+      />
+    </div>
     """
   end
 
@@ -552,6 +613,10 @@ defmodule ForkmateWeb.GameComponents do
   attr :birdview, :boolean, default: false, doc: "draw every node as a small board"
   attr :on_select, :any, default: nil, doc: "event name or JS command; sends `phx-value-id`"
 
+  attr :on_toggle_birdview, :any,
+    default: "toggle_birdview",
+    doc: "event name or JS command for the bird view button"
+
   def branch_graph(assigns) do
     placed = layout(assigns.nodes)
     by_id = Map.new(placed, &{&1.id, &1})
@@ -571,107 +636,135 @@ defmodule ForkmateWeb.GameComponents do
       )
 
     ~H"""
-    <div class="overflow-x-auto rounded-box border border-base-300 bg-base-200 p-2">
-      <svg
-        id={@id}
-        width={@width}
-        height={@height}
-        viewBox={"0 0 #{@width} #{@height}"}
-        role="img"
-        aria-label="Branch overview"
-        class="mx-auto min-w-full"
-      >
-        <path
-          :for={{node, parent} <- @edges}
-          d={edge_path(parent, node, @grid)}
-          fill="none"
-          stroke-width={if node.id in @main_ids, do: 3, else: 2}
-          class={if node.id in @main_ids, do: "stroke-primary", else: "stroke-base-content/40"}
-        />
-        <g
-          :for={node <- @placed}
-          transform={"translate(#{x(node, @grid)} #{y(node, @grid)})"}
-          phx-click={@on_select}
-          phx-value-id={node.id}
-          class={@on_select && "cursor-pointer"}
+    <div
+      id={"#{@id}-panel"}
+      class="group/g flex min-h-0 flex-1 flex-col gap-2 [&:fullscreen]:h-screen [&:fullscreen]:bg-base-100 [&:fullscreen]:p-6"
+    >
+      <div class="flex items-center justify-end gap-2">
+        <.birdview_toggle on={@birdview} on_toggle={@on_toggle_birdview} />
+        <.fullscreen_toggle target={"##{@id}-panel"} />
+      </div>
+      <div class="max-h-[70vh] min-h-0 flex-1 overflow-auto rounded-box border border-base-300 bg-base-200 p-2 group-[:fullscreen]/g:max-h-none">
+        <svg
+          id={@id}
+          width={@width}
+          height={@height}
+          viewBox={"0 0 #{@width} #{@height}"}
+          role="img"
+          aria-label="Branch overview"
+          class="mx-auto min-w-full"
         >
-          <title>{node_title(node)}</title>
-          <% mini? = @birdview && Map.get(node, :fen) %>
-          <%= if mini? do %>
-            <rect
-              :if={node.id == @current}
-              x={-@board_size / 2 - 4}
-              y={-@board_size / 2 - 4}
-              width={@board_size + 8}
-              height={@board_size + 8}
-              rx="6"
-              fill="none"
-              stroke-width="2"
-              class="stroke-accent"
-            />
-            <foreignObject
-              x={-@board_size / 2}
-              y={-@board_size / 2}
-              width={@board_size}
-              height={@board_size}
+          <path
+            :for={{node, parent} <- @edges}
+            d={edge_path(parent, node, @grid)}
+            fill="none"
+            stroke-width={if node.id in @main_ids, do: 3, else: 2}
+            class={if node.id in @main_ids, do: "stroke-primary", else: "stroke-base-content/40"}
+          />
+          <g
+            :for={node <- @placed}
+            transform={"translate(#{x(node, @grid)} #{y(node, @grid)})"}
+            phx-click={@on_select}
+            phx-value-id={node.id}
+            class={@on_select && "cursor-pointer"}
+          >
+            <title>{node_title(node)}</title>
+            <% mini? = @birdview && Map.get(node, :fen) %>
+            <%= if mini? do %>
+              <rect
+                :if={node.id == @current}
+                x={-@board_size / 2 - 4}
+                y={-@board_size / 2 - 4}
+                width={@board_size + 8}
+                height={@board_size + 8}
+                rx="6"
+                fill="none"
+                stroke-width="2"
+                class="stroke-accent"
+              />
+              <foreignObject
+                x={-@board_size / 2}
+                y={-@board_size / 2}
+                width={@board_size}
+                height={@board_size}
+              >
+                <div class="size-full">
+                  <.board
+                    id={"#{@id}-board-#{node.id}"}
+                    fen={node.fen}
+                    last_move={Map.get(node, :last_move)}
+                    selected={moved_square(node)}
+                    class="rounded-sm shadow-none"
+                  />
+                </div>
+              </foreignObject>
+            <% else %>
+              <circle
+                :if={node.id == @current}
+                r="14"
+                fill="none"
+                stroke-width="2"
+                class="stroke-accent"
+              />
+              <circle
+                r="9"
+                stroke-width="2"
+                class={[
+                  "stroke-base-content",
+                  if(node.mover == :white, do: "fill-white", else: "fill-neutral")
+                ]}
+              />
+            <% end %>
+            <text
+              y={if mini?, do: @board_size / 2 + 16, else: 26}
+              text-anchor="middle"
+              font-size="11"
+              class="fill-base-content font-mono"
             >
-              <div class="size-full">
-                <.board
-                  id={"#{@id}-board-#{node.id}"}
-                  fen={node.fen}
-                  last_move={Map.get(node, :last_move)}
-                  selected={moved_square(node)}
-                  class="rounded-sm shadow-none"
-                />
-              </div>
-            </foreignObject>
-          <% else %>
-            <circle
-              :if={node.id == @current}
-              r="14"
-              fill="none"
-              stroke-width="2"
-              class="stroke-accent"
-            />
-            <circle
-              r="9"
-              stroke-width="2"
-              class={[
-                "stroke-base-content",
-                if(node.mover == :white, do: "fill-white", else: "fill-neutral")
-              ]}
-            />
-          <% end %>
-          <text
-            y={if mini?, do: @board_size / 2 + 16, else: 26}
-            text-anchor="middle"
-            font-size="11"
-            class="fill-base-content font-mono"
-          >
-            {node.san}
-          </text>
-          <text
-            :if={badge(node)}
-            x={if mini?, do: @board_size / 2 + 4, else: 18}
-            y={if mini?, do: -@board_size / 2 + 12, else: 4}
-            font-size="13"
-            font-weight="700"
-            class="fill-error"
-          >
-            {badge(node)}
-          </text>
-          <text
-            :for={{color, i} <- cursor_colors(@cursors, node.id)}
-            y={if(mini?, do: -@board_size / 2 - 8, else: -16) - i * 12}
-            text-anchor="middle"
-            font-size="10"
-            class="fill-accent font-semibold"
-          >
-            {cursor_label(color)}
-          </text>
-        </g>
-      </svg>
+              {node.san}
+            </text>
+            <text
+              :if={badge(node)}
+              x={if mini?, do: @board_size / 2 + 4, else: 18}
+              y={if mini?, do: -@board_size / 2 + 12, else: 4}
+              font-size="13"
+              font-weight="700"
+              class="fill-error"
+            >
+              {badge(node)}
+            </text>
+            <text
+              :for={{color, i} <- cursor_colors(@cursors, node.id)}
+              y={if(mini?, do: -@board_size / 2 - 8, else: -16) - i * 12}
+              text-anchor="middle"
+              font-size="10"
+              class="fill-accent font-semibold"
+            >
+              {cursor_label(color)}
+            </text>
+          </g>
+        </svg>
+      </div>
     </div>
+    """
+  end
+
+  @doc "Toggles browser fullscreen on `target` (a CSS selector); needs the `forkmate:fullscreen` listener in the page JS."
+  attr :target, :string, required: true
+
+  def fullscreen_toggle(assigns) do
+    ~H"""
+    <button
+      type="button"
+      phx-click={JS.dispatch("forkmate:fullscreen", to: @target)}
+      class="btn btn-xs btn-outline"
+      title="Toggle full screen"
+    >
+      <span class="hero-arrows-pointing-out size-4 group-[:fullscreen]/g:hidden" />
+      <span class="hero-arrows-pointing-in hidden size-4 group-[:fullscreen]/g:inline-block" />
+      <span class="group-[:fullscreen]/g:hidden">Full screen</span>
+      <span class="hidden group-[:fullscreen]/g:inline">Exit full screen</span>
+    </button>
     """
   end
 
@@ -691,7 +784,7 @@ defmodule ForkmateWeb.GameComponents do
       phx-click={@on_toggle}
       class={["btn btn-xs", if(@on, do: "btn-primary", else: "btn-outline")]}
     >
-      Bird view
+      <span class="hero-eye size-4" /> Bird view
     </button>
     """
   end

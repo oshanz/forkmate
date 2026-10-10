@@ -316,11 +316,11 @@ defmodule ForkmateWeb.GameLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
-      <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header class="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-base-300 pb-4">
+    <Layouts.app flash={@flash} wide>
+      <div>
+        <header class="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-base-300 pb-3">
           <div class="flex items-center gap-4">
-            <h1 class="text-2xl font-bold tracking-tight">Forkmate</h1>
+            <h1 class="text-xl font-bold tracking-tight xl:text-2xl">Game</h1>
             <span class={[
               "badge",
               if(@game.status == "ended", do: "badge-error", else: "badge-success")
@@ -340,7 +340,6 @@ defmodule ForkmateWeb.GameLive do
               Playing as: <strong>{@perspective |> Atom.to_string() |> String.capitalize()}</strong>
               (Flip)
             </button>
-            <GameComponents.birdview_toggle on={@birdview} />
           </div>
         </header>
 
@@ -349,7 +348,7 @@ defmodule ForkmateWeb.GameLive do
           :if={
             @game.draw_offered_by && @game.draw_offered_by != current_player_id(@game, @perspective)
           }
-          class="mb-6"
+          class="mb-4"
         >
           <GameComponents.draw_offer
             from={
@@ -365,7 +364,7 @@ defmodule ForkmateWeb.GameLive do
         <%!-- Game or Branch Result Banner --%>
         <div
           :if={@game.status == "ended" || (@current_node && @current_node.status != "open")}
-          class="mb-6"
+          class="mb-4"
         >
           <GameComponents.game_result
             reason={result_reason(@game, @current_node)}
@@ -374,9 +373,9 @@ defmodule ForkmateWeb.GameLive do
           />
         </div>
 
-        <div class="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_26rem] xl:gap-10 xl:grid-cols-[minmax(0,1fr)_30rem] 2xl:grid-cols-[minmax(0,1fr)_38rem]">
           <%!-- Left Column: Chess Board and Players --%>
-          <div class="lg:col-span-7 flex flex-col items-center">
+          <div class="flex flex-col items-center">
             <% top_player =
               if @perspective == :white, do: @game.black_player_id, else: @game.white_player_id %>
             <% top_color = if @perspective == :white, do: :black, else: :white %>
@@ -384,7 +383,7 @@ defmodule ForkmateWeb.GameLive do
               if @perspective == :white, do: @game.white_player_id, else: @game.black_player_id %>
             <% bottom_color = if @perspective == :white, do: :white, else: :black %>
 
-            <div class="w-full max-w-xl flex flex-col gap-3">
+            <div class="flex w-full flex-col gap-3 lg:w-[min(100%,calc(100dvh-15rem))]">
               <GameComponents.player_card
                 name={Seat.label(top_player)}
                 color={top_color}
@@ -435,46 +434,22 @@ defmodule ForkmateWeb.GameLive do
           </div>
 
           <%!-- Right Column: Move List & Branch Graph --%>
-          <div class="lg:col-span-5 flex flex-col gap-6">
-            <%!-- Move List for the selected branch --%>
-            <div class="rounded-box border border-base-300 bg-base-200/50 p-4">
-              <div class="mb-3 flex items-center justify-between border-b border-base-300 pb-2">
-                <h2 class="text-sm font-semibold uppercase tracking-wider text-base-content/70">
-                  Move History
-                </h2>
-                <span class="text-xs text-base-content/50">
-                  Node: <span class="font-mono text-primary">{@current_node_id}</span>
-                </span>
-              </div>
+          <div class="flex min-h-0 flex-col gap-4 lg:sticky lg:top-4 lg:h-[calc(100dvh-7rem)]">
+            <GameComponents.history_panel
+              moves={@line_moves}
+              current={@current_node_id}
+              forks={@fork_ids}
+              on_select="select_node"
+            />
 
-              <div class="max-h-56 overflow-y-auto pr-1">
-                <GameComponents.move_list
-                  moves={@line_moves}
-                  current={@current_node_id}
-                  forks={@fork_ids}
-                  on_select="select_node"
-                />
-              </div>
-            </div>
-
-            <%!-- Branch Overview Graph --%>
-            <div class="rounded-box border border-base-300 bg-base-200/50 p-4">
-              <div class="mb-3 flex items-center justify-between border-b border-base-300 pb-2">
-                <h2 class="text-sm font-semibold uppercase tracking-wider text-base-content/70">
-                  Branch Overview ({length(@graph_nodes)} nodes)
-                </h2>
-                <span class="text-xs text-base-content/50">Click any node to rewind or branch</span>
-              </div>
-
-              <GameComponents.branch_graph
-                id="game-branch-graph"
-                nodes={@graph_nodes}
-                current={@current_node_id}
-                cursors={@cursors}
-                birdview={@birdview}
-                on_select="select_node"
-              />
-            </div>
+            <GameComponents.branch_panel
+              id="game-branch-graph"
+              nodes={@graph_nodes}
+              current={@current_node_id}
+              cursors={@cursors}
+              birdview={@birdview}
+              on_select="select_node"
+            />
           </div>
         </div>
       </div>

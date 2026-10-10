@@ -81,3 +81,8 @@ if (process.env.NODE_ENV === "development") {
   })
 }
 
+
+// Toggle browser fullscreen on the element a `JS.dispatch("forkmate:fullscreen", to: ...)` targets.
+window.addEventListener("forkmate:fullscreen", e => {
+  if(document.fullscreenElement){ document.exitFullscreen() } else { e.target.requestFullscreen() }
+})
