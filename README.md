@@ -1,6 +1,6 @@
 <h1 align="center">🚧 UNDER DEVELOPMENT 🚧</h1>
 
-<p align="center"><strong>This project is a work in progress and is not yet playable.<br>Features described below are planned, and anything may change.</strong></p>
+<p align="center"><strong>This project is a work in progress.<br>You can already play a game (two players, or against a Stockfish bot), but some features below are still planned and anything may change.</strong></p>
 
 ---
 
@@ -16,7 +16,7 @@ An online chess game where every game is an append-only event stream, and any ga
 
 - Two players play a full, rules-correct game: all legal moves, castling, en passant and promotion.
 - A game ends by checkmate, stalemate, resignation, agreed draw, threefold repetition, the fifty-move rule or timeout.
-- Play against a Stockfish bot: pick the difficulty (Easy, Medium, Hard, Max) and your colour on the home page.
+- Play against the computer (Stockfish): pick the difficulty (Easy, Medium, Hard, Max) and your colour (White, Black or Random) on the home page.
 - Live board for both players, game history and replay.
 - Rewind to any earlier position and play a different move to start a branch. Every branch is drawn in a git-style graph.
 
@@ -44,11 +44,12 @@ flowchart TB
   rm --> ui
 ```
 
-- **Write side:** one `Game` aggregate per game, with the game ID as the stream ID. All rule checks happen in the aggregate, which calls a pure Elixir rules module with no Commanded dependency.
+- **Write side:** one `Game` aggregate per game, with the game ID as the stream ID. All rule checks happen in the aggregate, which calls the `Forkmate.Chess.Engine` behaviour. Its only implementation is a Rust NIF (Rustler) over the [`shakmaty`](https://github.com/niklasf/shakmaty) crate in `native/forkmate_chess`; threefold repetition is computed in Elixir.
 - **Game tree:** `MakeMove` carries `from_node_id`. If that node already has a child, a branch is created and `BranchCreated` is also emitted. `MoveMade` carries the SAN, the resulting FEN and clock timestamps, so read models and replay never re-run the rules.
 - **Read side:** Ecto projections (for example a `nodes` table) built from events with `commanded_ecto_projections`. They can be reset and replayed from the store. The branch overview is drawn as SVG in LiveView.
 - **Real time:** projections broadcast over Phoenix PubSub, so both players and spectators see moves as they happen.
 - **Separate aggregates:** `Player`, `Challenge`/`Lobby` and `Tournament` stay apart from `Game` so a game's stream stays small.
+- **Computer opponent:** a bot is just a player id (`bot:stockfish:<level>`), so the aggregate is unchanged. A Commanded event handler (`Forkmate.Bots.Player`) plays for bot seats by dispatching ordinary `MakeMove` commands, and a small pool of Stockfish processes (UCI over Erlang ports) picks the moves. In a bot game the board is locked to the human's colour.
 - **Two databases:** `Forkmate.Repo` holds read models, and `Forkmate.EventStore` is a separate database for the event log.
 - **UI:** presentational chess components live in `ForkmateWeb.GameComponents` and are developed in Phoenix Storybook at `/storybook`.
 
@@ -58,13 +59,14 @@ flowchart TB
 - **Commanded** (CQRS/ES) with **EventStore** on Postgres for the event log
 - **commanded_ecto_projections** and **Ecto** for read models
 - **Postgres**, with two databases: one for read models and one for the event store
+- **Rust** (Rustler NIF over `shakmaty`) for the chess rules
 - **Tailwind CSS v4** and **esbuild** for assets, **Bandit** as the web server
 - **Stockfish** (GPL-3.0) as the computer opponent, driven over UCI
 - **Credo** (strict) for linting
 
 ## Getting started
 
-Requires Elixir 1.15+ and Docker (for Postgres; see `docker-compose.yml`). Versions are pinned via `mise.toml`.
+Requires Elixir, Rust 1.97+ (for the chess rules NIF) and Docker (for Postgres; see `docker-compose.yml`). Versions are pinned via `mise.toml`, so `mise install` sets up the whole toolchain, including Stockfish.
 
 ```sh
 bin/dev            # starts Postgres, runs mix setup, then iex -S mix phx.server
@@ -77,7 +79,7 @@ mix setup          # deps, databases, migrations, seeds, assets
 mix phx.server     # or: iex -S mix phx.server
 ```
 
-`mise install` also installs Stockfish (needed for the computer opponent). Without mise, install it yourself and put it on `PATH` or set `STOCKFISH_PATH`.
+The computer opponent needs Stockfish. `mise install` provides it; without mise, install Stockfish yourself and put it on `PATH` or set `STOCKFISH_PATH`. Without it, "Play vs computer" reports the opponent as unavailable and everything else still works.
 
 Then visit [localhost:4000](http://localhost:4000) to start a game, or [localhost:4000/storybook](http://localhost:4000/storybook) for the component library.
 
@@ -86,9 +88,9 @@ In production, the event store reads `EVENTSTORE_DATABASE_URL` (falling back to 
 ## Development
 
 ```sh
-mix test                       # runs against a test database (needs Postgres up)
+mix test                       # runs against a test database (needs Postgres up); Stockfish tests are skipped if it is not installed
 mix test path/to/file_test.exs # a single file
-mix precommit                  # compile (warnings as errors), deps.unlock --unused, format, credo --strict, test
+mix precommit                  # compile (warnings as errors), deps.unlock --unused, format, credo --strict, cargo clippy and test, mix test
 ```
 
 Run `mix precommit` before committing.
