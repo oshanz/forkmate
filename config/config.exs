@@ -14,6 +14,9 @@ config :forkmate,
 
 config :forkmate, :chess_engine, Forkmate.Chess.Engine.Shakmaty
 
+# Computer opponent implementation (see Forkmate.Bots)
+config :forkmate, :bot, Forkmate.Bots.Stockfish
+
 # Configure the endpoint
 config :forkmate, ForkmateWeb.Endpoint,
   url: [host: "localhost"],
