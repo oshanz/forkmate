@@ -129,58 +129,34 @@ defmodule ForkmateWeb.GameLive do
   end
 
   @impl true
-  def handle_event("offer_draw", _params, socket) do
-    player_id = current_player_id(socket.assigns.game, socket.assigns.perspective)
-
-    case Games.offer_draw(socket.assigns.game_id, player_id) do
-      :ok ->
-        {:noreply, put_flash(socket, :info, "Draw offered.")}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Cannot offer draw: #{inspect(reason)}")}
-    end
-  end
+  def handle_event("offer_draw", _params, socket),
+    do: run_action(socket, &Games.offer_draw/2, "Draw offered.", "Cannot offer draw")
 
   @impl true
-  def handle_event("accept_draw", _params, socket) do
-    player_id = current_player_id(socket.assigns.game, socket.assigns.perspective)
-
-    case Games.accept_draw(socket.assigns.game_id, player_id) do
-      :ok ->
-        {:noreply, put_flash(socket, :info, "Draw accepted.")}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Cannot accept draw: #{inspect(reason)}")}
-    end
-  end
+  def handle_event("accept_draw", _params, socket),
+    do: run_action(socket, &Games.accept_draw/2, "Draw accepted.", "Cannot accept draw")
 
   @impl true
-  def handle_event("decline_draw", _params, socket) do
-    player_id = current_player_id(socket.assigns.game, socket.assigns.perspective)
-
-    case Games.decline_draw(socket.assigns.game_id, player_id) do
-      :ok ->
-        {:noreply, put_flash(socket, :info, "Draw declined.")}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Cannot decline draw: #{inspect(reason)}")}
-    end
-  end
+  def handle_event("decline_draw", _params, socket),
+    do: run_action(socket, &Games.decline_draw/2, "Draw declined.", "Cannot decline draw")
 
   @impl true
-  def handle_event("resign", _params, socket) do
-    player_id = current_player_id(socket.assigns.game, socket.assigns.perspective)
-
-    case Games.resign(socket.assigns.game_id, player_id) do
-      :ok ->
-        {:noreply, put_flash(socket, :info, "You resigned.")}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Cannot resign: #{inspect(reason)}")}
-    end
-  end
+  def handle_event("resign", _params, socket),
+    do: run_action(socket, &Games.resign/2, "You resigned.", "Cannot resign")
 
   # --- Internal Helpers ---
+
+  defp run_action(socket, action, ok_message, error_prefix) do
+    %{game: game, game_id: game_id, perspective: perspective} = socket.assigns
+
+    case action.(game_id, current_player_id(game, perspective)) do
+      :ok ->
+        {:noreply, put_flash(socket, :info, ok_message)}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "#{error_prefix}: #{inspect(reason)}")}
+    end
+  end
 
   defp find_node(all_nodes, candidate_ids) do
     Enum.find_value(candidate_ids, fn id -> Enum.find(all_nodes, &(&1.id == id)) end)
@@ -253,10 +229,6 @@ defmodule ForkmateWeb.GameLive do
       current_node && current_node.from_square && current_node.to_square &&
         {current_node.from_square, current_node.to_square}
 
-    cursors = %{
-      socket.assigns.perspective => current_node_id
-    }
-
     bot_game = bot_game?(game)
 
     assign(socket,
@@ -270,7 +242,7 @@ defmodule ForkmateWeb.GameLive do
       active_turn: active_turn,
       last_move: last_move,
       check_square: current_node && current_node.check_square,
-      cursors: cursors,
+      cursors: %{socket.assigns.perspective => current_node_id},
       bot_game: bot_game,
       bot_thinking:
         bot_thinking?(game, bot_game, current_node_id, active_turn, socket.assigns.perspective)
@@ -351,11 +323,7 @@ defmodule ForkmateWeb.GameLive do
           class="mb-4"
         >
           <GameComponents.draw_offer
-            from={
-              if @game.draw_offered_by == @game.white_player_id,
-                do: @game.white_player_id,
-                else: @game.black_player_id
-            }
+            from={@game.draw_offered_by}
             on_accept="accept_draw"
             on_decline="decline_draw"
           />
@@ -480,22 +448,16 @@ defmodule ForkmateWeb.GameLive do
 
   defp result_reason(_, _), do: :checkmate
 
-  defp result_winner(%{status: "ended", winner: winner}, _) when is_binary(winner) do
-    case winner do
-      "white" -> :white
-      "black" -> :black
-      _ -> nil
-    end
-  end
+  defp result_winner(%{status: "ended", winner: winner}, _) when is_binary(winner),
+    do: parse_color(winner)
 
-  defp result_winner(_, %Node{status: "checkmate", mover: mover}) when is_binary(mover) do
-    # The mover delivered checkmate, so mover won
-    case mover do
-      "white" -> :white
-      "black" -> :black
-      _ -> nil
-    end
-  end
+  # The mover delivered checkmate, so mover won.
+  defp result_winner(_, %Node{status: "checkmate", mover: mover}) when is_binary(mover),
+    do: parse_color(mover)
 
   defp result_winner(_, _), do: nil
+
+  defp parse_color("white"), do: :white
+  defp parse_color("black"), do: :black
+  defp parse_color(_), do: nil
 end
