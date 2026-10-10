@@ -7,7 +7,7 @@ defmodule Forkmate.Games.Game do
   creates a new branch.
   """
 
-  alias Forkmate.Chess.{Move, Position, Rules}
+  alias Forkmate.Chess.{Engine, Move, Position}
   alias Forkmate.Games.Commands.{AcceptDraw, DeclineDraw, MakeMove, OfferDraw, Resign, StartGame}
 
   alias Forkmate.Games.Events.{
@@ -49,21 +49,20 @@ defmodule Forkmate.Games.Game do
     root_node_id = Ecto.UUID.generate()
     initial_fen = cmd.initial_fen || Position.start_fen()
 
-    case Position.from_fen(initial_fen) do
-      {:ok, _pos} ->
-        {:ok,
-         [
-           %GameStarted{
-             game_id: cmd.game_id,
-             root_node_id: root_node_id,
-             white_player_id: cmd.white_player_id,
-             black_player_id: cmd.black_player_id,
-             initial_fen: initial_fen
-           }
-         ]}
-
-      {:error, reason} ->
-        {:error, {:invalid_fen, reason}}
+    with {:ok, pos} <- Position.from_fen(initial_fen),
+         :ok <- Engine.validate(pos) do
+      {:ok,
+       [
+         %GameStarted{
+           game_id: cmd.game_id,
+           root_node_id: root_node_id,
+           white_player_id: cmd.white_player_id,
+           black_player_id: cmd.black_player_id,
+           initial_fen: initial_fen
+         }
+       ]}
+    else
+      {:error, reason} -> {:error, {:invalid_fen, reason}}
     end
   end
 
@@ -84,7 +83,7 @@ defmodule Forkmate.Games.Game do
          :ok <- validate_player_turn(game, parent_node, cmd.player_id),
          :ok <- validate_new_node_id(game, cmd.node_id),
          {:ok, move} <- parse_move(cmd),
-         {:ok, next_position, meta} <- Rules.apply_move(parent_node.position, move) do
+         {:ok, next_position, meta} <- Engine.apply_move(parent_node.position, move) do
       build_move_events(game, parent_node, cmd, next_position, meta)
     end
   end
@@ -347,7 +346,7 @@ defmodule Forkmate.Games.Game do
       from: meta.from,
       to: meta.to,
       promotion: meta.promotion,
-      check: Rules.check_square(next_position),
+      check: Engine.check_square(next_position),
       is_checkmate: meta.is_checkmate
     }
 
@@ -400,7 +399,7 @@ defmodule Forkmate.Games.Game do
         :ongoing ->
           history = get_ancestry_positions(game.nodes, cmd.from_node_id)
 
-          if Rules.outcome(next_position, history) == :threefold_repetition do
+          if Engine.outcome(next_position, history) == :threefold_repetition do
             [
               %GameEnded{
                 game_id: game.game_id,

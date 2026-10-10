@@ -6,7 +6,7 @@ defmodule Forkmate.Games do
 
   import Ecto.Query
 
-  alias Forkmate.Chess.{Position, Rules, Square}
+  alias Forkmate.Chess.{Engine, Position, Square}
   alias Forkmate.CommandedApp
   alias Forkmate.Games.Commands.{AcceptDraw, DeclineDraw, MakeMove, OfferDraw, Resign, StartGame}
   alias Forkmate.Games.ReadModels.{Game, Node}
@@ -143,7 +143,7 @@ defmodule Forkmate.Games do
     case {Position.from_fen(fen), Square.from_name(selected_square)} do
       {{:ok, pos}, from_idx} when from_idx != nil ->
         pos
-        |> Rules.legal_moves()
+        |> Engine.legal_moves()
         |> Enum.filter(&(&1.from == from_idx))
         |> Enum.map(&Square.to_name(&1.to))
         |> Enum.uniq()
@@ -163,7 +163,7 @@ defmodule Forkmate.Games do
     case {Position.from_fen(fen), Square.from_name(selected_square)} do
       {{:ok, pos}, from_idx} when from_idx != nil ->
         pos
-        |> Rules.legal_moves()
+        |> Engine.legal_moves()
         |> Enum.filter(&(&1.from == from_idx and &1.promotion != nil))
         |> Enum.map(&Square.to_name(&1.to))
         |> Enum.uniq()
@@ -182,7 +182,7 @@ defmodule Forkmate.Games do
     with {:ok, pos} <- Position.from_fen(fen),
          from_idx when from_idx != nil <- Square.from_name(from_sq),
          to_idx when to_idx != nil <- Square.from_name(to_sq) do
-      Enum.any?(Rules.legal_moves(pos), fn m ->
+      Enum.any?(Engine.legal_moves(pos), fn m ->
         m.from == from_idx and m.to == to_idx and m.promotion != nil
       end)
     else
