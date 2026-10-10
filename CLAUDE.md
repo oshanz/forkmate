@@ -9,12 +9,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bin/dev` — start Postgres (docker compose), run `mix setup`, then `iex -S mix phx.server`
 - `mix phx.server` — run the Phoenix server directly
 - `mix test test/path_test.exs:LINE` — a single test; `mix test --failed` — rerun failures
-- `mix precommit` — run when finished: compile with warnings as errors, format, `credo --strict`, test
+- `mix precommit` — run when finished: compile with warnings as errors, `deps.unlock --unused`, format, `credo --strict`, test. It runs in the `:test` env and can modify `mix.lock`, so check `git diff mix.lock` afterwards.
+- `mix test` first runs `ecto.create` and `ecto.migrate` for the test DB, so Postgres must be running (`docker compose up -d`) even if you don't use `bin/dev`.
+- Toolchain versions come from `mise.toml` (latest Elixir and Erlang).
 
 ## Architecture
 
 Forkmate is an online chess game built using CQRS and event sourcing on Phoenix (`Commanded`, `EventStore`, `commanded_ecto_projections`).
 See `docs/design-brainstorm.md` for background and future roadmap items (`Player`, `Challenge`/`Lobby`, `Tournament`).
+The README's status line and Architecture section say the domain code doesn't exist yet. That is outdated; trust the code and this file.
 
 ### Core Domain & CQRS (`lib/forkmate/`)
 

@@ -8,7 +8,7 @@
 
 An online chess game where every game is an append-only event stream, and any game can be **forked**: rewind to an earlier position, play a different move, and see every branch of the game in one overview.
 
-> Status: the Phoenix app, event store wiring and UI design system (Storybook) are in place; the chess domain (aggregates, commands, events, projections) is still being designed and built. See [`docs/design-brainstorm.md`](docs/design-brainstorm.md).
+> Status: the chess rules engine, the `Game` aggregate with branching, projections and a LiveView game UI are in place, along with the Storybook design system. Matchmaking, players, clocks-based timeouts and the other items under "Later" are not built yet. See [`docs/design-brainstorm.md`](docs/design-brainstorm.md) for the roadmap.
 
 ## The game
 
@@ -31,7 +31,7 @@ A game is a tree of positions, not a line. Rewinding is client-side and writes n
 
 ## Architecture
 
-Forkmate is CQRS / event sourcing. This is the planned design from [`docs/design-brainstorm.md`](docs/design-brainstorm.md); none of the domain code exists yet.
+Forkmate is CQRS / event sourcing. The design is described in [`docs/design-brainstorm.md`](docs/design-brainstorm.md); the `Game` aggregate, projections and UI below are implemented, while `Player`, `Challenge`/`Lobby` and `Tournament` are still planned.
 
 ```mermaid
 flowchart TB
@@ -62,23 +62,29 @@ flowchart TB
 
 ## Getting started
 
-Requires Elixir 1.15+ and a running Postgres.
+Requires Elixir 1.15+ and Docker (for Postgres; see `docker-compose.yml`). Versions are pinned via `mise.toml`.
+
+```sh
+bin/dev            # starts Postgres, runs mix setup, then iex -S mix phx.server
+```
+
+Or step by step, with your own running Postgres:
 
 ```sh
 mix setup          # deps, databases, migrations, seeds, assets
 mix phx.server     # or: iex -S mix phx.server
 ```
 
-Then visit [localhost:4000](http://localhost:4000).
+Then visit [localhost:4000](http://localhost:4000) to start a game, or [localhost:4000/storybook](http://localhost:4000/storybook) for the component library.
 
 In production, the event store reads `EVENTSTORE_DATABASE_URL` (falling back to `DATABASE_URL`) and `EVENTSTORE_POOL_SIZE`.
 
 ## Development
 
 ```sh
-mix test                       # runs against a test database
+mix test                       # runs against a test database (needs Postgres up)
 mix test path/to/file_test.exs # a single file
-mix precommit                  # compile (warnings as errors), format, credo --strict, test
+mix precommit                  # compile (warnings as errors), deps.unlock --unused, format, credo --strict, test
 ```
 
 Run `mix precommit` before committing.
