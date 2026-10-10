@@ -107,6 +107,8 @@ defmodule Forkmate.MixProject do
         "deps.unlock --unused",
         "format",
         "credo --strict",
+        "cmd cargo clippy --manifest-path native/forkmate_chess/Cargo.toml -- -D warnings",
+        "cmd cargo test --manifest-path native/forkmate_chess/Cargo.toml",
         "test"
       ]
     ]

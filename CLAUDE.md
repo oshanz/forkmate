@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `mix phx.server` — run the Phoenix server directly
 - `mix test test/path_test.exs:LINE` — a single test; `mix test --failed` — rerun failures
 - `mix precommit` — run when finished: compile with warnings as errors, `deps.unlock --unused`, format, `credo --strict`, test. It runs in the `:test` env and can modify `mix.lock`, so check `git diff mix.lock` afterwards.
+- Rust 1.97+ is required (pinned in `mise.toml`); `mix precommit` also runs `cargo clippy` and `cargo test` for the NIF crate. `shakmaty` is GPL-3.0-or-later.
 - `mix test` first runs `ecto.create` and `ecto.migrate` for the test DB, so Postgres must be running (`docker compose up -d`) even if you don't use `bin/dev`.
 - Toolchain versions come from `mise.toml` (latest Elixir and Erlang).
 
@@ -21,7 +22,7 @@ The README's status line and Architecture section say the domain code doesn't ex
 
 ### Core Domain & CQRS (`lib/forkmate/`)
 
-- **Chess rules engine** (`lib/forkmate/chess/`): Pure functional chess engine (`Position`, `Piece`, `Square`, `Move`, `Rules`). Handles legal move generation/validation, FEN parsing/formatting, SAN notation, check/checkmate/stalemate, castling, en passant, pawn promotion, and draw conditions (insufficient material, 50-move rule, threefold repetition).
+- **Chess rules** (`lib/forkmate/chess/`): `Position`, `Piece`, `Square`, `Move` are pure data types (FEN parsing/formatting, UCI). Rules are accessed only through the `Forkmate.Chess.Engine` behaviour, selected by `config :forkmate, :chess_engine` (default `Engine.Shakmaty`, a Rustler NIF over the `shakmaty` crate in `native/forkmate_chess`; `Engine.Elixir` wraps the legacy pure-Elixir `Rules` module, kept as the oracle for `test/forkmate/chess/differential_test.exs` and as the rollback path). Threefold repetition is computed in Elixir (shakmaty has no history). `Forkmate.Chess.Native` is the raw NIF: FEN/UCI strings only.
 - **Game aggregate** (`lib/forkmate/games/game.ex`): One `Game` aggregate per game; the stream ID is the game ID. Maintains a **tree of positions** (`nodes` map) rather than a linear move list:
   - `MakeMove` carries `from_node_id`; if that node already has children, a new branch is created and both `BranchCreated` and `MoveMade` are emitted.
   - Rewinding is client-side only and writes no events.

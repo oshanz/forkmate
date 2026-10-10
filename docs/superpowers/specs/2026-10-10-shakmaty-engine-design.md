@@ -1,7 +1,7 @@
 # Replace the in-repo rules engine with shakmaty
 
 Date: 2026-10-10
-Status: draft, awaiting review
+Status: implemented (Rules module retained as oracle; removal deferred)
 
 ## Goal
 
