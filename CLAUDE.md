@@ -22,7 +22,7 @@ The README's status line and Architecture section say the domain code doesn't ex
 
 ### Core Domain & CQRS (`lib/forkmate/`)
 
-- **Chess rules** (`lib/forkmate/chess/`): `Position`, `Piece`, `Square`, `Move` are pure data types (FEN parsing/formatting, UCI). Rules are accessed only through the `Forkmate.Chess.Engine` behaviour, selected by `config :forkmate, :chess_engine` (default `Engine.Shakmaty`, a Rustler NIF over the `shakmaty` crate in `native/forkmate_chess`; `Engine.Elixir` wraps the legacy pure-Elixir `Rules` module, kept as the oracle for `test/forkmate/chess/differential_test.exs` and as the rollback path). Threefold repetition is computed in Elixir (shakmaty has no history). `Forkmate.Chess.Native` is the raw NIF: FEN/UCI strings only.
+- **Chess rules** (`lib/forkmate/chess/`): `Position`, `Piece`, `Square`, `Move` are pure data types (FEN parsing/formatting, UCI). Rules are accessed only through the `Forkmate.Chess.Engine` behaviour, selected by `config :forkmate, :chess_engine` (only implementation: `Engine.Shakmaty`, a Rustler NIF over the `shakmaty` crate in `native/forkmate_chess`). Threefold repetition is computed in Elixir (shakmaty has no history). `Forkmate.Chess.Native` is the raw NIF: FEN/UCI strings only.
 - **Game aggregate** (`lib/forkmate/games/game.ex`): One `Game` aggregate per game; the stream ID is the game ID. Maintains a **tree of positions** (`nodes` map) rather than a linear move list:
   - `MakeMove` carries `from_node_id`; if that node already has children, a new branch is created and both `BranchCreated` and `MoveMade` are emitted.
   - Rewinding is client-side only and writes no events.

@@ -1,7 +1,7 @@
 # Replace the in-repo rules engine with shakmaty
 
 Date: 2026-10-10
-Status: implemented (Rules module retained as oracle; removal deferred)
+Status: implemented; the legacy Rules module and Engine.Elixir were removed afterwards
 
 ## Goal
 

@@ -123,7 +123,7 @@ defmodule ForkmateWeb.Storybook.Design.Architecture do
       lv[LiveView<br/>board + branch graph] --> cmd[Command<br/>MakeMove from_node_id]
       cmd --> router[Router<br/>Commanded dispatch]
       router --> agg[Game aggregate<br/>stream id = game id]
-      agg <--> rules[Rules<br/>pure Elixir]
+      agg <--> rules[Chess engine<br/>shakmaty NIF]
       agg --> events[Events<br/>MoveMade, BranchCreated,<br/>GameEnded]
       events --> store[(EventStore<br/>forkmate_eventstore)]
     """

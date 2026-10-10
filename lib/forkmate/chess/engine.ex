@@ -3,8 +3,8 @@ defmodule Forkmate.Chess.Engine do
   Behaviour and facade for the chess rules authority.
 
   The implementation is chosen with `config :forkmate, :chess_engine, Module`.
-  `Forkmate.Chess.Engine.Elixir` wraps the in-repo `Rules` module;
-  `Forkmate.Chess.Engine.Shakmaty` uses the shakmaty NIF.
+  The only shipped implementation is `Forkmate.Chess.Engine.Shakmaty`, which uses
+  the shakmaty NIF; the config key exists so tests or future engines can swap it.
   """
 
   alias Forkmate.Chess.{Move, Piece, Position, Square}
@@ -24,7 +24,7 @@ defmodule Forkmate.Chess.Engine do
   @callback validate(Position.t()) :: :ok | {:error, term()}
 
   @spec impl() :: module()
-  def impl, do: Application.get_env(:forkmate, :chess_engine, __MODULE__.Elixir)
+  def impl, do: Application.get_env(:forkmate, :chess_engine, __MODULE__.Shakmaty)
 
   def legal_moves(pos), do: impl().legal_moves(pos)
   def apply_move(pos, move), do: impl().apply_move(pos, move)
