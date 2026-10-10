@@ -34,8 +34,14 @@ defmodule Forkmate.Application do
   end
 
   defp event_store_children do
-    if Application.get_env(:forkmate, :start_event_store, true),
-      do: [Forkmate.EventStore],
-      else: []
+    if Application.get_env(:forkmate, :start_event_store, true) do
+      [
+        Forkmate.EventStore,
+        Forkmate.CommandedApp,
+        Forkmate.Games.Projections.GameProjection
+      ]
+    else
+      []
+    end
   end
 end

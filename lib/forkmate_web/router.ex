@@ -18,6 +18,8 @@ defmodule ForkmateWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    post "/games", PageController, :create_game
+    live "/games/:id", GameLive
   end
 
   # Other scopes may use custom stacks.

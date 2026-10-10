@@ -56,12 +56,22 @@
       <Layouts.theme_toggle />
     </div>
 
-    <p class="text-[2rem] mt-4 font-semibold leading-10 tracking-tighter text-balance">
-      Peace of mind from prototype to production.
-    </p>
-    <p class="mt-4 leading-7 text-base-content/70">
-      Build rich, interactive web applications quickly, with less code and fewer moving parts. Join our growing community of developers using Phoenix to craft APIs, HTML5 apps and more, for fun or at scale.
-    </p>
+    <div class="mt-6 flex flex-col gap-4">
+      <h2 class="text-3xl font-extrabold tracking-tight">Forkmate Chess</h2>
+      <p class="leading-relaxed text-base-content/80">
+        An online chess game where every game is an append-only event stream, and any game can be <strong>forked</strong>: rewind to an earlier position, play a different move, and explore every branch in a git-style graph.
+      </p>
+      <div class="mt-2 flex gap-3">
+        <.form for={%{}} action={~p"/games"} method="post">
+          <button type="submit" class="btn btn-primary btn-md">
+            Start New Game
+          </button>
+        </.form>
+        <a href="/storybook" class="btn btn-outline btn-md">
+          Explore Storybook
+        </a>
+      </div>
+    </div>
     <div class="flex">
       <div class="w-full sm:w-auto">
         <div class="mt-10 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
