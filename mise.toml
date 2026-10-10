@@ -2,3 +2,4 @@
 elixir = "latest"
 erlang = "latest"
 rust = "1.97"
+"github:official-stockfish/Stockfish" = { version = "sf_19", rename_exe = "stockfish" }
