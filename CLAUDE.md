@@ -44,7 +44,9 @@ The README's status line and Architecture section say the domain code doesn't ex
   - `Forkmate.CommandedApp` configures `Commanded.EventStore.Adapters.EventStore`, which internally starts and supervises `Forkmate.EventStore`.
   - `Forkmate.Application` supervises `[Forkmate.CommandedApp, Forkmate.Games.Projections.GameProjection]` via `event_store_children()` when `:start_event_store` is true. `Forkmate.EventStore` must **not** be listed separately as a sibling child in `Forkmate.Application`.
   - In `config/test.exs`, `:start_event_store` is false. Tests that require Commanded and projections start them explicitly via `start_supervised!(Forkmate.CommandedApp)` and `start_supervised!(Forkmate.Games.Projections.GameProjection)`.
-- `mix ecto.setup` (and `mix setup`) also runs `event_store.create` and `event_store.init`; `ecto.reset` runs `event_store.drop`. Both are idempotent.
+- `mix ecto.setup` (and `mix setup`) also runs `event_store.create` and `event_store.init`, then `priv/repo/seeds.exs`; `ecto.reset` runs `event_store.drop`. Both are idempotent.
+- `mix assets.build` compiles two Tailwind profiles (`forkmate` and `storybook`) plus esbuild.
+- Tests mirror `lib/` under `test/forkmate` and `test/forkmate_web`; shared helpers (`ConnCase`, `DataCase`) are in `test/support`.
 
 ### Web Layer & UI
 
