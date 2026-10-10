@@ -72,4 +72,10 @@ fn outcome(fen: &str) -> Result<String, Atom> {
     Ok(outcome_label(&pos).to_string())
 }
 
+#[rustler::nif]
+fn check_square_of(fen: &str) -> Result<Option<String>, Atom> {
+    let pos = parse_position(fen)?;
+    Ok(check_square(&pos))
+}
+
 rustler::init!("Elixir.Forkmate.Chess.Native");

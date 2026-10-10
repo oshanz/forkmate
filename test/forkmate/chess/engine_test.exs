@@ -5,7 +5,7 @@ defmodule Forkmate.Chess.EngineTest do
 
   @mate_fen "r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4"
 
-  for impl <- [Forkmate.Chess.Engine.Elixir] do
+  for impl <- [Forkmate.Chess.Engine.Elixir, Forkmate.Chess.Engine.Shakmaty] do
     describe "#{inspect(impl)}" do
       @impl_mod impl
 
@@ -65,6 +65,20 @@ defmodule Forkmate.Chess.EngineTest do
   describe "facade" do
     test "delegates to the configured implementation" do
       assert length(Engine.legal_moves(Position.start())) == 20
+    end
+  end
+
+  describe "Engine.Shakmaty validation" do
+    alias Forkmate.Chess.Engine.Shakmaty
+
+    test "rejects kingless positions" do
+      pos = Position.from_fen!("8/8/8/8/8/8/8/8 w - - 0 1")
+      assert {:error, :invalid_fen} = Shakmaty.validate(pos)
+    end
+
+    test "legal_moves is empty for a rejected position instead of raising" do
+      pos = Position.from_fen!("8/8/8/8/8/8/8/8 w - - 0 1")
+      assert Shakmaty.legal_moves(pos) == []
     end
   end
 end

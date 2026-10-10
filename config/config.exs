@@ -12,6 +12,8 @@ config :forkmate,
   ecto_repos: [Forkmate.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :forkmate, :chess_engine, Forkmate.Chess.Engine.Shakmaty
+
 # Configure the endpoint
 config :forkmate, ForkmateWeb.Endpoint,
   url: [host: "localhost"],

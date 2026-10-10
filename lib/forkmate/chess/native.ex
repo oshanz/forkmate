@@ -18,4 +18,7 @@ defmodule Forkmate.Chess.Native do
 
   @spec outcome(String.t()) :: {:ok, String.t()} | {:error, :invalid_fen}
   def outcome(_fen), do: :erlang.nif_error(:nif_not_loaded)
+
+  @spec check_square_of(String.t()) :: {:ok, String.t() | nil} | {:error, :invalid_fen}
+  def check_square_of(_fen), do: :erlang.nif_error(:nif_not_loaded)
 end

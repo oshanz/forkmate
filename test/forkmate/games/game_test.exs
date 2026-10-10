@@ -46,6 +46,17 @@ defmodule Forkmate.Games.GameTest do
 
       assert {:error, :game_already_started} = Game.execute(game, cmd)
     end
+
+    test "rejects a kingless initial_fen" do
+      cmd = %StartGame{
+        game_id: @game_id,
+        white_player_id: @white,
+        black_player_id: @black,
+        initial_fen: "8/8/8/8/8/8/8/8 w - - 0 1"
+      }
+
+      assert {:error, {:invalid_fen, _reason}} = Game.execute(%Game{}, cmd)
+    end
   end
 
   describe "MakeMove" do

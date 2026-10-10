@@ -102,4 +102,15 @@ defmodule Forkmate.Chess.NativeTest do
       assert {:error, :invalid_fen} = Native.outcome("nonsense")
     end
   end
+
+  describe "check_square_of/1" do
+    test "reports the checked king's square" do
+      assert {:ok, "e8"} =
+               Native.check_square_of(
+                 "r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4"
+               )
+
+      assert {:ok, nil} = Native.check_square_of(Position.start_fen())
+    end
+  end
 end
