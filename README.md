@@ -71,4 +71,4 @@ Run `mix precommit` before committing.
 - [**Phoenix Storybook**](https://github.com/phenixdigital/phoenix_storybook) hosts the component library.
 - [**mise**](https://mise.jdx.dev) pins the toolchain and installs Stockfish.
 
-Because it links `shakmaty`, Forkmate is licensed under the GNU GPL v3 (see [`LICENSE`](LICENSE)).
+Forkmate is licensed under the GNU GPL v3 (see [`LICENSE`](LICENSE)) because it builds on two GPL projects, shakmaty and Stockfish.
