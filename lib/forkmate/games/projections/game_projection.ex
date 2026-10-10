@@ -74,26 +74,16 @@ defmodule Forkmate.Games.Projections.GameProjection do
       })
 
     update_game_query =
-      from(g in Game,
-        where: g.id == ^event.game_id,
-        update: [set: [current_node_id: ^event.node_id, current_fen: ^event.fen]]
-      )
+      game_query(event.game_id, current_node_id: event.node_id, current_fen: event.fen)
 
     # A move withdraws only the mover's own pending draw offer, as in the aggregate.
-    clear_draw_offer_query =
-      case to_string(event.mover) do
-        "white" ->
-          from(g in Game,
-            where: g.id == ^event.game_id and g.draw_offered_by == g.white_player_id,
-            update: [set: [draw_offered_by: nil]]
-          )
+    seat = if to_string(event.mover) == "white", do: :white_player_id, else: :black_player_id
 
-        "black" ->
-          from(g in Game,
-            where: g.id == ^event.game_id and g.draw_offered_by == g.black_player_id,
-            update: [set: [draw_offered_by: nil]]
-          )
-      end
+    clear_draw_offer_query =
+      from(g in Game,
+        where: g.id == ^event.game_id and g.draw_offered_by == field(g, ^seat),
+        update: [set: [draw_offered_by: nil]]
+      )
 
     multi
     |> Ecto.Multi.insert(:new_node, node_changeset)
@@ -102,42 +92,25 @@ defmodule Forkmate.Games.Projections.GameProjection do
   end)
 
   project(%GameEnded{} = event, _metadata, fn multi ->
-    scope = to_string(event.scope)
     reason = to_string(event.reason)
 
-    if scope == "game" do
-      winner_str = event.winner && to_string(event.winner)
-
-      update_game_query =
-        from(g in Game,
-          where: g.id == ^event.game_id,
-          update: [
-            set: [
-              status: "ended",
-              winner: ^winner_str,
-              end_reason: ^reason,
-              draw_offered_by: nil
-            ]
-          ]
-        )
-
-      Ecto.Multi.update_all(multi, :end_game, update_game_query, [])
+    if to_string(event.scope) == "game" do
+      Ecto.Multi.update_all(
+        multi,
+        :end_game,
+        game_query(event.game_id,
+          status: "ended",
+          winner: event.winner && to_string(event.winner),
+          end_reason: reason,
+          draw_offered_by: nil
+        ),
+        []
+      )
     else
-      status_str =
-        case reason do
-          "checkmate" -> "checkmate"
-          "stalemate" -> "stalemate"
-          "resignation" -> "resigned"
-          "fifty_move" -> "fifty_move"
-          "repetition" -> "repetition"
-          "insufficient_material" -> "insufficient_material"
-          _ -> "draw"
-        end
-
       update_node_query =
         from(n in Node,
           where: n.id == ^event.node_id,
-          update: [set: [status: ^status_str]]
+          update: [set: [status: ^node_status(reason)]]
         )
 
       Ecto.Multi.update_all(multi, :end_node, update_node_query, [])
@@ -145,24 +118,34 @@ defmodule Forkmate.Games.Projections.GameProjection do
   end)
 
   project(%DrawOffered{} = event, _metadata, fn multi ->
-    update_game_query =
-      from(g in Game,
-        where: g.id == ^event.game_id,
-        update: [set: [draw_offered_by: ^event.player_id]]
-      )
-
-    Ecto.Multi.update_all(multi, :draw_offered, update_game_query, [])
+    Ecto.Multi.update_all(
+      multi,
+      :draw_offered,
+      game_query(event.game_id, draw_offered_by: event.player_id),
+      []
+    )
   end)
 
   project(%DrawDeclined{} = event, _metadata, fn multi ->
-    update_game_query =
-      from(g in Game,
-        where: g.id == ^event.game_id,
-        update: [set: [draw_offered_by: nil]]
-      )
-
-    Ecto.Multi.update_all(multi, :draw_declined, update_game_query, [])
+    Ecto.Multi.update_all(
+      multi,
+      :draw_declined,
+      game_query(event.game_id, draw_offered_by: nil),
+      []
+    )
   end)
+
+  defp game_query(game_id, set) do
+    from(g in Game, where: g.id == ^game_id, update: [set: ^set])
+  end
+
+  defp node_status("resignation"), do: "resigned"
+
+  defp node_status(reason)
+       when reason in ~w(checkmate stalemate fifty_move repetition insufficient_material),
+       do: reason
+
+  defp node_status(_reason), do: "draw"
 
   @impl Commanded.Projections.Ecto
   def after_update(event, _metadata, _changes) do

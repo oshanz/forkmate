@@ -89,33 +89,9 @@ defmodule Forkmate.Games.Game do
   end
 
   def execute(%__MODULE__{} = game, %Resign{} = cmd) do
-    cond do
-      cmd.player_id == game.white_player_id ->
-        {:ok,
-         [
-           %GameEnded{
-             game_id: game.game_id,
-             node_id: nil,
-             reason: :resignation,
-             winner: :black,
-             scope: :game
-           }
-         ]}
-
-      cmd.player_id == game.black_player_id ->
-        {:ok,
-         [
-           %GameEnded{
-             game_id: game.game_id,
-             node_id: nil,
-             reason: :resignation,
-             winner: :white,
-             scope: :game
-           }
-         ]}
-
-      true ->
-        {:error, :not_a_player}
+    case color_of(game, cmd.player_id) do
+      nil -> {:error, :not_a_player}
+      color -> {:ok, [game_ended(game, :resignation, opposite(color))]}
     end
   end
 
@@ -144,16 +120,7 @@ defmodule Forkmate.Games.Game do
         {:error, :not_a_player}
 
       true ->
-        {:ok,
-         [
-           %GameEnded{
-             game_id: game.game_id,
-             node_id: nil,
-             reason: :agreed_draw,
-             winner: nil,
-             scope: :game
-           }
-         ]}
+        {:ok, [game_ended(game, :agreed_draw, nil)]}
     end
   end
 
@@ -351,71 +318,47 @@ defmodule Forkmate.Games.Game do
     }
 
     outcome_events =
-      case meta.outcome do
-        {:checkmate, winner} ->
-          [
-            %GameEnded{
-              game_id: game.game_id,
-              node_id: new_node_id,
-              reason: :checkmate,
-              winner: winner,
-              scope: :branch
-            }
-          ]
-
-        :stalemate ->
-          [
-            %GameEnded{
-              game_id: game.game_id,
-              node_id: new_node_id,
-              reason: :stalemate,
-              winner: nil,
-              scope: :branch
-            }
-          ]
-
-        :fifty_move ->
-          [
-            %GameEnded{
-              game_id: game.game_id,
-              node_id: new_node_id,
-              reason: :fifty_move,
-              winner: nil,
-              scope: :branch
-            }
-          ]
-
-        :insufficient_material ->
-          [
-            %GameEnded{
-              game_id: game.game_id,
-              node_id: new_node_id,
-              reason: :insufficient_material,
-              winner: nil,
-              scope: :branch
-            }
-          ]
-
-        :ongoing ->
-          history = get_ancestry_positions(game.nodes, cmd.from_node_id)
-
-          if Engine.outcome(next_position, history) == :threefold_repetition do
-            [
-              %GameEnded{
-                game_id: game.game_id,
-                node_id: new_node_id,
-                reason: :repetition,
-                winner: nil,
-                scope: :branch
-              }
-            ]
-          else
-            []
-          end
+      case outcome_reason(game, cmd, next_position, meta.outcome) do
+        nil -> []
+        {reason, winner} -> [game_ended(game, reason, winner, new_node_id)]
       end
 
     {:ok, branch_events ++ [move_event] ++ outcome_events}
   end
+
+  defp outcome_reason(_game, _cmd, _position, {:checkmate, winner}), do: {:checkmate, winner}
+
+  defp outcome_reason(_game, _cmd, _position, reason)
+       when reason in [:stalemate, :fifty_move, :insufficient_material],
+       do: {reason, nil}
+
+  defp outcome_reason(game, cmd, next_position, :ongoing) do
+    history = get_ancestry_positions(game.nodes, cmd.from_node_id)
+
+    if Engine.outcome(next_position, history) == :threefold_repetition,
+      do: {:repetition, nil}
+  end
+
+  defp game_ended(game, reason, winner, node_id \\ nil) do
+    %GameEnded{
+      game_id: game.game_id,
+      node_id: node_id,
+      reason: reason,
+      winner: winner,
+      scope: if(node_id, do: :branch, else: :game)
+    }
+  end
+
+  defp color_of(game, player_id) do
+    cond do
+      player_id == game.white_player_id -> :white
+      player_id == game.black_player_id -> :black
+      true -> nil
+    end
+  end
+
+  defp opposite(:white), do: :black
+  defp opposite(:black), do: :white
 
   defp get_ancestry_positions(nodes, node_id) do
     Stream.iterate(Map.get(nodes, node_id), fn

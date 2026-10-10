@@ -17,21 +17,15 @@ defmodule Forkmate.Games do
   @spec start_game(map()) :: {:ok, String.t()} | {:error, term()}
   def start_game(attrs) do
     game_id = Map.get(attrs, :game_id) || Ecto.UUID.generate()
-    white_player_id = Map.get(attrs, :white_player_id)
-    black_player_id = Map.get(attrs, :black_player_id)
-    initial_fen = Map.get(attrs, :initial_fen)
 
     cmd = %StartGame{
       game_id: game_id,
-      white_player_id: white_player_id,
-      black_player_id: black_player_id,
-      initial_fen: initial_fen
+      white_player_id: Map.get(attrs, :white_player_id),
+      black_player_id: Map.get(attrs, :black_player_id),
+      initial_fen: Map.get(attrs, :initial_fen)
     }
 
-    case CommandedApp.dispatch(cmd, consistency: :strong) do
-      :ok -> {:ok, game_id}
-      {:error, reason} -> {:error, reason}
-    end
+    with :ok <- dispatch(cmd), do: {:ok, game_id}
   end
 
   @spec make_move(map()) :: :ok | {:error, term()}
@@ -46,32 +40,34 @@ defmodule Forkmate.Games do
       player_id: Map.get(attrs, :player_id)
     }
 
-    CommandedApp.dispatch(cmd, consistency: :strong)
+    dispatch(cmd)
   end
 
   @spec resign(String.t(), String.t()) :: :ok | {:error, term()}
   def resign(game_id, player_id) do
     cmd = %Resign{game_id: game_id, player_id: player_id}
-    CommandedApp.dispatch(cmd, consistency: :strong)
+    dispatch(cmd)
   end
 
   @spec offer_draw(String.t(), String.t()) :: :ok | {:error, term()}
   def offer_draw(game_id, player_id) do
     cmd = %OfferDraw{game_id: game_id, player_id: player_id}
-    CommandedApp.dispatch(cmd, consistency: :strong)
+    dispatch(cmd)
   end
 
   @spec accept_draw(String.t(), String.t()) :: :ok | {:error, term()}
   def accept_draw(game_id, player_id) do
     cmd = %AcceptDraw{game_id: game_id, player_id: player_id}
-    CommandedApp.dispatch(cmd, consistency: :strong)
+    dispatch(cmd)
   end
 
   @spec decline_draw(String.t(), String.t()) :: :ok | {:error, term()}
   def decline_draw(game_id, player_id) do
     cmd = %DeclineDraw{game_id: game_id, player_id: player_id}
-    CommandedApp.dispatch(cmd, consistency: :strong)
+    dispatch(cmd)
   end
+
+  defp dispatch(cmd), do: CommandedApp.dispatch(cmd, consistency: :strong)
 
   # --- Read Model Queries ---
 
@@ -139,32 +135,22 @@ defmodule Forkmate.Games do
   Returns legal target square names for a selected square in a given node.
   """
   @spec legal_targets(Node.t(), String.t() | nil) :: [String.t()]
-  def legal_targets(%Node{fen: fen}, selected_square) when is_binary(selected_square) do
-    case {Position.from_fen(fen), Square.from_name(selected_square)} do
-      {{:ok, pos}, from_idx} when from_idx != nil ->
-        pos
-        |> Engine.legal_moves()
-        |> Enum.filter(&(&1.from == from_idx))
-        |> Enum.map(&Square.to_name(&1.to))
-        |> Enum.uniq()
-
-      _ ->
-        []
-    end
-  end
-
-  def legal_targets(_node, _), do: []
+  def legal_targets(node, selected_square),
+    do: target_names(node, selected_square, fn _ -> true end)
 
   @doc """
   Returns promotion target square names for a selected square in a given node.
   """
   @spec promotion_targets(Node.t(), String.t() | nil) :: [String.t()]
-  def promotion_targets(%Node{fen: fen}, selected_square) when is_binary(selected_square) do
+  def promotion_targets(node, selected_square),
+    do: target_names(node, selected_square, &(&1.promotion != nil))
+
+  defp target_names(%Node{fen: fen}, selected_square, filter) when is_binary(selected_square) do
     case {Position.from_fen(fen), Square.from_name(selected_square)} do
       {{:ok, pos}, from_idx} when from_idx != nil ->
         pos
         |> Engine.legal_moves()
-        |> Enum.filter(&(&1.from == from_idx and &1.promotion != nil))
+        |> Enum.filter(&(&1.from == from_idx and filter.(&1)))
         |> Enum.map(&Square.to_name(&1.to))
         |> Enum.uniq()
 
@@ -173,7 +159,7 @@ defmodule Forkmate.Games do
     end
   end
 
-  def promotion_targets(_node, _), do: []
+  defp target_names(_node, _selected_square, _filter), do: []
 
   @doc """
   Checks if a move from selected to target is a promotion move.
