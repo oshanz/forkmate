@@ -257,11 +257,7 @@ defmodule ForkmateWeb.GameLive do
       socket.assigns.perspective => current_node_id
     }
 
-    bot_game = Seat.human_color(game.white_player_id, game.black_player_id) != nil
-
-    bot_thinking =
-      bot_game and game.status != "ended" and current_node_id == game.current_node_id and
-        active_turn != socket.assigns.perspective
+    bot_game = bot_game?(game)
 
     assign(socket,
       game: game,
@@ -276,8 +272,17 @@ defmodule ForkmateWeb.GameLive do
       check_square: current_node && current_node.check_square,
       cursors: cursors,
       bot_game: bot_game,
-      bot_thinking: bot_thinking
+      bot_thinking:
+        bot_thinking?(game, bot_game, current_node_id, active_turn, socket.assigns.perspective)
     )
+  end
+
+  defp bot_game?(game), do: Seat.human_color(game.white_player_id, game.black_player_id) != nil
+
+  # The bot is to move on the latest node of an ongoing game.
+  defp bot_thinking?(game, bot_game, current_node_id, active_turn, perspective) do
+    bot_game and game.status != "ended" and current_node_id == game.current_node_id and
+      active_turn != perspective
   end
 
   # In a bot game the board is locked to the human's colour so the human can

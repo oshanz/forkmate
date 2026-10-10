@@ -16,6 +16,7 @@ An online chess game where every game is an append-only event stream, and any ga
 
 - Two players play a full, rules-correct game: all legal moves, castling, en passant and promotion.
 - A game ends by checkmate, stalemate, resignation, agreed draw, threefold repetition, the fifty-move rule or timeout.
+- Play against a Stockfish bot: pick the difficulty (Easy, Medium, Hard, Max) and your colour on the home page.
 - Live board for both players, game history and replay.
 - Rewind to any earlier position and play a different move to start a branch. Every branch is drawn in a git-style graph.
 
@@ -58,6 +59,7 @@ flowchart TB
 - **commanded_ecto_projections** and **Ecto** for read models
 - **Postgres**, with two databases: one for read models and one for the event store
 - **Tailwind CSS v4** and **esbuild** for assets, **Bandit** as the web server
+- **Stockfish** (GPL-3.0) as the computer opponent, driven over UCI
 - **Credo** (strict) for linting
 
 ## Getting started
@@ -74,6 +76,8 @@ Or step by step, with your own running Postgres:
 mix setup          # deps, databases, migrations, seeds, assets
 mix phx.server     # or: iex -S mix phx.server
 ```
+
+`mise install` also installs Stockfish (needed for the computer opponent). Without mise, install it yourself and put it on `PATH` or set `STOCKFISH_PATH`.
 
 Then visit [localhost:4000](http://localhost:4000) to start a game, or [localhost:4000/storybook](http://localhost:4000/storybook) for the component library.
 
