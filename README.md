@@ -94,3 +94,15 @@ mix precommit                  # compile (warnings as errors), deps.unlock --unu
 ```
 
 Run `mix precommit` before committing.
+
+## Acknowledgements
+
+Forkmate stands on these projects:
+
+- [**Stockfish**](https://stockfishchess.org) ([source](https://github.com/official-stockfish/Stockfish), GPL-3.0) plays the computer opponent. It runs as a separate process and is not bundled in this repository; `mise install` downloads an official release.
+- [**shakmaty**](https://github.com/niklasf/shakmaty) (GPL-3.0-or-later) is the chess rules library behind the `Forkmate.Chess.Engine` NIF, bridged with [Rustler](https://github.com/rusterlium/rustler).
+- [**Phoenix**](https://www.phoenixframework.org) and LiveView, [**Commanded**](https://github.com/commanded/commanded) with [EventStore](https://github.com/commanded/eventstore), and [Ecto](https://github.com/elixir-ecto/ecto) make up the application stack.
+- [**Phoenix Storybook**](https://github.com/phenixdigital/phoenix_storybook) hosts the component library.
+- [**mise**](https://mise.jdx.dev) pins the toolchain and installs Stockfish.
+
+Because it links `shakmaty`, Forkmate is licensed under the GNU GPL v3 (see [`LICENSE`](LICENSE)).
