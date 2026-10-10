@@ -24,6 +24,8 @@ defmodule Forkmate.Bots.Player do
   alias Forkmate.Games.Events.{DrawOffered, GameStarted, MoveMade}
 
   @task_supervisor Forkmate.Bots.TaskSupervisor
+  @game_wait_attempts 20
+  @game_wait_ms 50
 
   def handle(%GameStarted{} = event, _metadata) do
     schedule_reply(
@@ -86,7 +88,8 @@ defmodule Forkmate.Bots.Player do
   end
 
   defp play(game_id, node_id, fen, bot_id, level) do
-    with {:ok, uci} <- best_move_with_retry(fen, level),
+    with :ok <- await_game(game_id),
+         {:ok, uci} <- best_move_with_retry(fen, level),
          {:ok, %Move{} = move} <- Move.from_uci(uci),
          :ok <-
            Games.make_move(%{
@@ -100,7 +103,12 @@ defmodule Forkmate.Bots.Player do
            }) do
       :ok
     else
+      # Duplicate delivery of an event we already answered.
       {:error, :node_id_taken} ->
+        :ok
+
+      # Stale replay for a game whose read model never appears.
+      {:error, :game_not_found} ->
         :ok
 
       other ->
@@ -109,6 +117,23 @@ defmodule Forkmate.Bots.Player do
         )
 
         :error
+    end
+  end
+
+  # The handler can see `GameStarted` before the projection has written the
+  # game row, and can replay events for games whose read model is gone. Wait
+  # briefly for the row, then give up without touching the game.
+  defp await_game(game_id, attempts \\ @game_wait_attempts) do
+    cond do
+      Games.get_game(game_id) != nil ->
+        :ok
+
+      attempts == 0 ->
+        {:error, :game_not_found}
+
+      true ->
+        Process.sleep(@game_wait_ms)
+        await_game(game_id, attempts - 1)
     end
   end
 
