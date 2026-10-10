@@ -7,31 +7,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 - `bin/dev` — start Postgres (docker compose), run `mix setup`, then `iex -S mix phx.server`
+- `mix phx.server` — run the Phoenix server directly
 - `mix test test/path_test.exs:LINE` — a single test; `mix test --failed` — rerun failures
 - `mix precommit` — run when finished: compile with warnings as errors, format, `credo --strict`, test
 
 ## Architecture
 
-Forkmate is an online chess game built as CQRS/event sourcing on Phoenix (Commanded, EventStore, `commanded_ecto_projections`). The design in `docs/design-brainstorm.md` is still a proposal; read it before adding domain code. No aggregates, commands, events or projections exist yet.
+Forkmate is an online chess game built using CQRS and event sourcing on Phoenix (`Commanded`, `EventStore`, `commanded_ecto_projections`).
+See `docs/design-brainstorm.md` for background and future roadmap items (`Player`, `Challenge`/`Lobby`, `Tournament`).
 
-Key design decisions from that doc:
-- One `Game` aggregate per game; the stream ID is the game ID, and all rule checks happen in the aggregate.
-- A game is a **tree of positions**, not a line. `MakeMove` carries `from_node_id`; if that node already has a child, a branch is created and `BranchCreated` is also emitted. Rewinding is client-side only and writes no events. Only the player whose colour is to move at a node may branch from it.
-- `MoveMade` carries SAN, the resulting FEN and clock timestamps, so read models and replay never re-run the rules.
-- Read models (e.g. a `nodes` table) are Ecto projections. The branch overview is rendered as SVG in LiveView.
-- `Player`, `Challenge`/`Lobby` and `Tournament` are separate aggregates from `Game`.
+### Core Domain & CQRS (`lib/forkmate/`)
 
-### Two Postgres databases
+- **Chess rules engine** (`lib/forkmate/chess/`): Pure functional chess engine (`Position`, `Piece`, `Square`, `Move`, `Rules`). Handles legal move generation/validation, FEN parsing/formatting, SAN notation, check/checkmate/stalemate, castling, en passant, pawn promotion, and draw conditions (insufficient material, 50-move rule, threefold repetition).
+- **Game aggregate** (`lib/forkmate/games/game.ex`): One `Game` aggregate per game; the stream ID is the game ID. Maintains a **tree of positions** (`nodes` map) rather than a linear move list:
+  - `MakeMove` carries `from_node_id`; if that node already has children, a new branch is created and both `BranchCreated` and `MoveMade` are emitted.
+  - Rewinding is client-side only and writes no events.
+  - Only the player whose colour is to move at a node may play or branch from it.
+  - Commands: `StartGame`, `MakeMove`, `OfferDraw`, `AcceptDraw`, `DeclineDraw`, `Resign`.
+  - Events: `GameStarted`, `MoveMade`, `BranchCreated`, `DrawOffered`, `DrawDeclined`, `GameEnded`. `MoveMade` carries SAN, resulting FEN, and clock timestamps so projections and replay never re-evaluate chess rules.
+- **Commanded app & routing**:
+  - `Forkmate.CommandedApp` (`lib/forkmate/commanded_app.ex`) uses `Commanded.Application` and manages `Forkmate.EventStore`.
+  - `Forkmate.Games.Router` (`lib/forkmate/games/router.ex`) routes commands to `Forkmate.Games.Game`.
+- **Read models & Projections**:
+  - `Forkmate.Games.ReadModels.Game` and `Forkmate.Games.ReadModels.Node` (`lib/forkmate/games/read_models/`).
+  - `Forkmate.Games.Projections.GameProjection` (`lib/forkmate/games/projections/game_projection.ex`) uses `Commanded.Projections.Ecto` with `:strong` consistency, writes to Postgres tables `games` and `game_nodes`, and broadcasts updates over `Forkmate.PubSub`.
+- **Games Context** (`lib/forkmate/games.ex`): Public API for dispatching commands (with `:strong` consistency) and querying game read models.
 
-- `Forkmate.Repo` (Ecto) holds read models and projections.
-- `Forkmate.EventStore` (`lib/forkmate/event_store.ex`) is a separate database. In prod it uses `EVENTSTORE_DATABASE_URL` (falls back to `DATABASE_URL`) and `EVENTSTORE_POOL_SIZE`.
-- `Forkmate.Application` starts the event store only when `:start_event_store` is true. `config/test.exs` sets it to `false`, so tests that need it must start it themselves.
-- `mix ecto.setup` (and so `mix setup`) also runs `event_store.create` and `event_store.init`; `ecto.reset` runs `event_store.drop`. Both are idempotent.
+### Two Postgres Databases & Supervision
 
-### Web layer and design system
+- `Forkmate.Repo` (Ecto) holds read models and projections (`forkmate_dev` / `forkmate_test`).
+- `Forkmate.EventStore` (`lib/forkmate/event_store.ex`) is a separate database (`forkmate_eventstore_dev` / `forkmate_eventstore_test`). In prod it uses `EVENTSTORE_DATABASE_URL` (falls back to `DATABASE_URL`) and `EVENTSTORE_POOL_SIZE`.
+- **Supervision tree**:
+  - `Forkmate.CommandedApp` configures `Commanded.EventStore.Adapters.EventStore`, which internally starts and supervises `Forkmate.EventStore`.
+  - `Forkmate.Application` supervises `[Forkmate.CommandedApp, Forkmate.Games.Projections.GameProjection]` via `event_store_children()` when `:start_event_store` is true. `Forkmate.EventStore` must **not** be listed separately as a sibling child in `Forkmate.Application`.
+  - In `config/test.exs`, `:start_event_store` is false. Tests that require Commanded and projections start them explicitly via `start_supervised!(Forkmate.CommandedApp)` and `start_supervised!(Forkmate.Games.Projections.GameProjection)`.
+- `mix ecto.setup` (and `mix setup`) also runs `event_store.create` and `event_store.init`; `ecto.reset` runs `event_store.drop`. Both are idempotent.
 
-- Standard Phoenix 1.8 layout under `lib/forkmate_web/`; only the default `PageController` exists so far. Tailwind has two profiles, `forkmate` and `storybook`.
-- UI is developed in Phoenix Storybook at `/storybook` (content in `storybook/`; `game/*` has one story per component, `design/*` has architecture and game-screen pages).
-- Architecture diagrams are Mermaid, not hand-drawn SVG. `storybook/design/architecture.story.exs` puts the source in a `<div phx-hook="Mermaid" phx-update="ignore">`; the hook in `assets/js/storybook.js` loads mermaid from a CDN (there is no npm setup). Keep diagrams small and top-to-bottom, since wide ones get scaled down until the text is unreadable, and Mermaid ignores a subgraph's `direction` when edges cross its boundary. `branch_graph` stays SVG because it is a real UI component.
-- Storybook pages outside the `forkmate` sandbox follow the OS `prefers-color-scheme`, so a light page can get the dark daisyUI theme and pale, unreadable text. Put `data-theme="light"` on a story's root element.
-- `ForkmateWeb.GameComponents` holds the presentational chess components (board from FEN, move list, clock, branch graph, etc.). They only render data passed in and never run chess rules. When changing one, update its story in `storybook/game/`.
+### Web Layer & UI
+
+- Phoenix 1.8 layout under `lib/forkmate_web/`:
+  - `ForkmateWeb.PageController` (`/`): Home page showing active/recent games and a quick button to start a new game (`POST /games`).
+  - `ForkmateWeb.GameLive` (`/games/:id`): Interactive chess interface with real-time board rendering, move highlights, branching tree navigation, move list, draw offers, resignations, and game status. Subscribes to `game:<id>` on `Forkmate.PubSub`.
+- UI components and Storybook:
+  - Developed in Phoenix Storybook at `/storybook` (`storybook/game/` for component stories, `storybook/design/` for architecture and screens).
+  - Architecture diagrams in Storybook use Mermaid (`<div phx-hook="Mermaid" phx-update="ignore">`). Keep diagrams small and top-to-bottom.
+  - Storybook pages outside the `forkmate` sandbox follow the OS `prefers-color-scheme`; put `data-theme="light"` on a story's root element if needed.
+  - `ForkmateWeb.GameComponents` holds presentational chess components (board from FEN, move list, clock, branch graph, etc.). They only render data passed in and never run chess rules. When modifying them, update corresponding stories in `storybook/game/`.
