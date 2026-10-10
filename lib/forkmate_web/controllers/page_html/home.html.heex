@@ -72,6 +72,34 @@
         </a>
       </div>
     </div>
+    <.form
+      for={%{}}
+      action={~p"/games"}
+      method="post"
+      class="mt-4 flex flex-wrap items-end gap-3 rounded-box border border-base-300 bg-base-200/50 p-4"
+    >
+      <input type="hidden" name="mode" value="bot" />
+      <h3 class="w-full text-sm font-semibold uppercase tracking-wider text-base-content/70">
+        Play vs computer
+      </h3>
+      <label class="flex flex-col gap-1 text-sm">
+        Difficulty
+        <select name="level" class="select select-bordered select-sm">
+          <option :for={level <- @levels} value={level} selected={level == :medium}>
+            {level |> Atom.to_string() |> String.capitalize()}
+          </option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        Play as
+        <select name="color" class="select select-bordered select-sm">
+          <option value="white">White</option>
+          <option value="black">Black</option>
+          <option value="random">Random</option>
+        </select>
+      </label>
+      <button type="submit" class="btn btn-secondary btn-sm">Start</button>
+    </.form>
     <div class="flex">
       <div class="w-full sm:w-auto">
         <div class="mt-10 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
