@@ -79,6 +79,13 @@ defmodule Forkmate.Chess.NativeTest do
       assert {:ok, {_fen, "Qg6", "stalemate", nil}} = Native.apply_move(fen, "g1g6")
     end
 
+    test "king-takes-own-rook castling notation is not a legal move" do
+      fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
+
+      assert {:error, :illegal_move} = Native.apply_move(fen, "e1h1")
+      assert {:error, :illegal_move} = Native.apply_move(fen, "e1a1")
+    end
+
     test "errors" do
       assert {:error, :illegal_move} = Native.apply_move(Position.start_fen(), "e2e5")
       assert {:error, :invalid_uci} = Native.apply_move(Position.start_fen(), "zz")

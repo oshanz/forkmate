@@ -54,6 +54,11 @@ fn apply_move(fen: &str, uci: &str) -> Result<(String, String, String, Option<St
     let pos = parse_position(fen)?;
     let uci: UciMove = uci.parse().map_err(|_| atoms::invalid_uci())?;
     let mv = uci.to_move(&pos).map_err(|_| atoms::illegal_move())?;
+    // shakmaty also accepts king-takes-own-rook castling notation (e1h1); we only
+    // accept the standard king-to-destination form (e1g1).
+    if UciMove::from_standard(mv) != uci {
+        return Err(atoms::illegal_move());
+    }
 
     let san = SanPlus::from_move(pos.clone(), mv).to_string();
     let next = pos.play(mv).map_err(|_| atoms::illegal_move())?;

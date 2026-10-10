@@ -7,13 +7,15 @@ defmodule Forkmate.Chess.Engine.Shakmaty do
 
   @behaviour Forkmate.Chess.Engine
 
+  require Logger
+
   alias Forkmate.Chess.{Move, Native, Piece, Position, Square}
 
   @impl true
   def legal_moves(%Position{} = pos) do
     case Native.legal_moves(Position.to_fen(pos)) do
       {:ok, ucis} -> Enum.flat_map(ucis, &parse_uci/1)
-      {:error, _reason} -> []
+      {:error, reason} -> log_rejected(pos, reason, [])
     end
   end
 
@@ -35,7 +37,7 @@ defmodule Forkmate.Chess.Engine.Shakmaty do
   def check_square(%Position{} = pos) do
     case Native.check_square_of(Position.to_fen(pos)) do
       {:ok, square} -> square
-      {:error, _reason} -> nil
+      {:error, reason} -> log_rejected(pos, reason, nil)
     end
   end
 
@@ -44,7 +46,7 @@ defmodule Forkmate.Chess.Engine.Shakmaty do
     case Native.outcome(Position.to_fen(pos)) do
       {:ok, "ongoing"} -> if repetition?(pos, history), do: :threefold_repetition, else: :ongoing
       {:ok, label} -> outcome_term(label, Piece.opponent(pos.active_color))
-      {:error, _reason} -> :ongoing
+      {:error, reason} -> log_rejected(pos, reason, :ongoing)
     end
   end
 
@@ -57,6 +59,13 @@ defmodule Forkmate.Chess.Engine.Shakmaty do
   end
 
   # --- helpers ---
+
+  # A position the NIF cannot parse (e.g. a game stored before the engine switch)
+  # degrades to "no moves"; log it so the stuck game is traceable.
+  defp log_rejected(pos, reason, fallback) do
+    Logger.warning("shakmaty rejected position #{Position.to_fen(pos)}: #{inspect(reason)}")
+    fallback
+  end
 
   defp parse_uci(uci) do
     case Move.from_uci(uci) do

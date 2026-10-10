@@ -30,6 +30,22 @@ defmodule Forkmate.Chess.EngineTest do
                  @impl_mod.apply_move(Position.start(), Move.new("e2", "e5"))
       end
 
+      test "apply_move/2 rejects king-to-rook castling squares" do
+        pos = Position.from_fen!("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1")
+        assert {:error, :illegal_move} = @impl_mod.apply_move(pos, Move.new("e1", "h1"))
+      end
+
+      test "apply_move/2 reports the mating side as winner in meta" do
+        pos =
+          Position.from_fen!(
+            "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"
+          )
+
+        assert {:ok, _next, meta} = @impl_mod.apply_move(pos, Move.new("h5", "f7"))
+        assert meta.outcome == {:checkmate, :white}
+        assert meta.is_checkmate
+      end
+
       test "check_square/1" do
         assert @impl_mod.check_square(Position.from_fen!(@mate_fen)) == "e8"
         assert @impl_mod.check_square(Position.start()) == nil
@@ -69,7 +85,23 @@ defmodule Forkmate.Chess.EngineTest do
   end
 
   describe "Engine.Shakmaty validation" do
+    import ExUnit.CaptureLog
+
     alias Forkmate.Chess.Engine.Shakmaty
+
+    test "a position the NIF rejects is logged with its FEN instead of failing silently" do
+      pos = Position.from_fen!("8/8/8/8/8/8/8/8 w - - 0 1")
+
+      log =
+        capture_log(fn ->
+          assert Shakmaty.legal_moves(pos) == []
+          assert Shakmaty.check_square(pos) == nil
+          assert Shakmaty.outcome(pos, []) == :ongoing
+        end)
+
+      assert log =~ "8/8/8/8/8/8/8/8 w - - 0 1"
+      assert log =~ "shakmaty rejected position"
+    end
 
     test "rejects kingless positions" do
       pos = Position.from_fen!("8/8/8/8/8/8/8/8 w - - 0 1")
