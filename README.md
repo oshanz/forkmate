@@ -25,6 +25,16 @@ A game is a tree of positions, not a line. Rewinding is client-side and writes n
 
 CQRS / event sourcing on Phoenix: LiveView sends commands to a `Game` aggregate (one per game), events go to an EventStore, and projections build Ecto read models and broadcast updates over PubSub.
 
+```mermaid
+flowchart TB
+  ui["LiveView UI"] -->|commands| agg["Game aggregate"]
+  agg -->|events| es[("EventStore (Postgres)")]
+  es --> proj["Projections"]
+  proj --> rm[("Read models (Postgres)")]
+  proj -->|PubSub| ui
+  rm --> ui
+```
+
 - **Rules:** the aggregate calls the `Forkmate.Chess.Engine` behaviour, implemented by a Rust NIF over [`shakmaty`](https://github.com/niklasf/shakmaty) (`native/forkmate_chess`).
 - **Game tree:** `MakeMove` carries `from_node_id`; a node that already has a child creates a branch. `MoveMade` carries SAN, the resulting FEN and clock timestamps, so read models and replay never re-run the rules.
 - **Computer opponent:** a bot is just a player id (`bot:stockfish:<level>`). The `Forkmate.Bots.Player` event handler plays for bot seats with ordinary `MakeMove` commands, using a small pool of Stockfish processes over UCI.
