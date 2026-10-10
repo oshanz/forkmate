@@ -1,6 +1,6 @@
-<h1 align="center">🚧 UNDER DEVELOPMENT 🚧</h1>
+<h1 align="center">🚧 ALPHA 🚧</h1>
 
-<p align="center"><strong>This project is a work in progress.<br>You can already play a game (two players, or against a Stockfish bot), but some features below are still planned and anything may change.</strong></p>
+<p align="center"><strong>Forkmate is in alpha: playable, but rough and still changing.<br>Contributions are welcome!</strong></p>
 
 ---
 
