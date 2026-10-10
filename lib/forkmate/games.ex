@@ -16,10 +16,10 @@ defmodule Forkmate.Games do
 
   @spec start_game(map()) :: {:ok, String.t()} | {:error, term()}
   def start_game(attrs) do
-    game_id = Map.get(attrs, :game_id) || Map.get(attrs, "game_id") || Ecto.UUID.generate()
-    white_player_id = Map.get(attrs, :white_player_id) || Map.get(attrs, "white_player_id")
-    black_player_id = Map.get(attrs, :black_player_id) || Map.get(attrs, "black_player_id")
-    initial_fen = Map.get(attrs, :initial_fen) || Map.get(attrs, "initial_fen")
+    game_id = Map.get(attrs, :game_id) || Ecto.UUID.generate()
+    white_player_id = Map.get(attrs, :white_player_id)
+    black_player_id = Map.get(attrs, :black_player_id)
+    initial_fen = Map.get(attrs, :initial_fen)
 
     cmd = %StartGame{
       game_id: game_id,
@@ -37,13 +37,13 @@ defmodule Forkmate.Games do
   @spec make_move(map()) :: :ok | {:error, term()}
   def make_move(attrs) do
     cmd = %MakeMove{
-      game_id: Map.get(attrs, :game_id) || Map.get(attrs, "game_id"),
-      from_node_id: Map.get(attrs, :from_node_id) || Map.get(attrs, "from_node_id"),
-      node_id: Map.get(attrs, :node_id) || Map.get(attrs, "node_id"),
-      from: Map.get(attrs, :from) || Map.get(attrs, "from"),
-      to: Map.get(attrs, :to) || Map.get(attrs, "to"),
-      promotion: Map.get(attrs, :promotion) || Map.get(attrs, "promotion"),
-      player_id: Map.get(attrs, :player_id) || Map.get(attrs, "player_id")
+      game_id: Map.get(attrs, :game_id),
+      from_node_id: Map.get(attrs, :from_node_id),
+      node_id: Map.get(attrs, :node_id),
+      from: Map.get(attrs, :from),
+      to: Map.get(attrs, :to),
+      promotion: Map.get(attrs, :promotion),
+      player_id: Map.get(attrs, :player_id)
     }
 
     CommandedApp.dispatch(cmd, consistency: :strong)
