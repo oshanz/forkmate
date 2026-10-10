@@ -65,7 +65,7 @@ Run `mix precommit` before committing.
 
 ## Acknowledgements
 
-- [**Stockfish**](https://stockfishchess.org) (GPL-3.0) plays the computer opponent. It runs as a separate process and is not bundled in this repository.
+- [**Stockfish**](https://stockfishchess.org) (GPL-3.0) plays the computer opponent.
 - [**shakmaty**](https://github.com/niklasf/shakmaty) (GPL-3.0-or-later) is the chess rules library, bridged to Elixir with [Rustler](https://github.com/rusterlium/rustler).
 - [**Phoenix**](https://www.phoenixframework.org) and LiveView, [**Commanded**](https://github.com/commanded/commanded) with [EventStore](https://github.com/commanded/eventstore), and [Ecto](https://github.com/elixir-ecto/ecto) make up the application stack.
 - [**Phoenix Storybook**](https://github.com/phenixdigital/phoenix_storybook) hosts the component library.
