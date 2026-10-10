@@ -35,3 +35,8 @@ forkmate-*.tar
 npm-debug.log
 /assets/node_modules/
 
+.superpowers/
+
+# Rust build output.
+/native/forkmate_chess/target/
+/priv/native/

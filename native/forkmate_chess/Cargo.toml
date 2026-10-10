@@ -1,0 +1,14 @@
+[package]
+name = "forkmate_chess"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.97"
+license = "GPL-3.0-or-later"
+
+[lib]
+name = "forkmate_chess"
+crate-type = ["cdylib"]
+
+[dependencies]
+rustler = "0.38"
+shakmaty = "=0.30.2"

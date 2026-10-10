@@ -71,7 +71,8 @@ defmodule Forkmate.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:rustler, "~> 0.38.0", runtime: false}
     ]
   end
 
