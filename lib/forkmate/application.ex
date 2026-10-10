@@ -37,7 +37,10 @@ defmodule Forkmate.Application do
     if Application.get_env(:forkmate, :start_event_store, true) do
       [
         Forkmate.CommandedApp,
-        Forkmate.Games.Projections.GameProjection
+        Forkmate.Games.Projections.GameProjection,
+        {Task.Supervisor, name: Forkmate.Bots.TaskSupervisor},
+        Forkmate.Bots.Stockfish.Pool,
+        Forkmate.Bots.Player
       ]
     else
       []
