@@ -26,27 +26,27 @@ Out of scope (v1):
 The bot is one of the two existing player-id strings, so the `Game` aggregate,
 commands and events do not change.
 
-- Bot id format: `bot:stockfish:<elo>` (e.g. `bot:stockfish:1400`).
+- Bot id format: `bot:stockfish:<level>` (e.g. `bot:stockfish:medium`).
 - The human keeps `"Player 1"` as today.
-- `Forkmate.Bots.Seat` (pure helpers): `bot?/1`, `elo/1`, `label/1`
-  (`"Stockfish (Medium)"` for display), `new/1`.
+- `Forkmate.Bots.Seat` (pure helpers): `bot?/1`, `level/1`, `label/1`
+  (`"Stockfish (Medium)"` for display), `new/1`, `human_color/2`.
 
-Difficulty levels (Elo passed to `UCI_Elo`):
+Difficulty levels are named presets of Stockfish options (Stockfish 17's
+`UCI_Elo` cannot go below 1320, so Easy uses `Skill Level` instead):
 
-| Level | Elo |
-|---|---|
-| Easy | 800 |
-| Medium | 1400 |
-| Hard | 2000 |
-| Max | no limit (`UCI_LimitStrength=false`) |
+| Level | Stockfish options | Move time |
+|---|---|---|
+| Easy | `UCI_LimitStrength=false`, `Skill Level=0` | 50 ms |
+| Medium | `UCI_LimitStrength=true`, `UCI_Elo=1400` | 300 ms |
+| Hard | `UCI_LimitStrength=true`, `UCI_Elo=2000` | 600 ms |
+| Max | `UCI_LimitStrength=false`, `Skill Level=20` | 1000 ms |
 
-Max is encoded as `bot:stockfish:max`. Stockfish's own minimum for `UCI_Elo` is
-read from the binary at runtime; if 800 is below it, the lowest accepted value
-is used and the label still says Easy.
+Every request sets all of these options, so a pooled process never inherits
+another game's strength. The values are tuned by feel during implementation.
 
 ### Components
 
-- `Forkmate.Bots.Bot` — behaviour: `best_move(fen, seat_id) :: {:ok, uci_string} | {:error, term}`.
+- `Forkmate.Bots.Bot` — behaviour: `best_move(fen, level) :: {:ok, uci_string} | {:error, term}` and `available?/0`.
 - `Forkmate.Bots.Stockfish` — implements `Bot`. Talks UCI to Stockfish through an
   Erlang Port. A small supervised pool of long-lived Stockfish processes; each
   request does `setoption` (strength), `position fen <fen>`, `go movetime <ms>`,
@@ -73,9 +73,14 @@ is used and the label still says Easy.
   Refuse to create the game (flash "Computer opponent unavailable", redirect to `/`)
   if the bot is not available (see error handling). Without `mode=bot` behaviour
   is unchanged.
-- `GameLive`: show `Seat.label/1` for bot seats. Show a "thinking…" indicator
-  while it is the bot's turn in an ongoing game. Draw offers to the bot are
-  declined by the server and the human sees the existing decline state.
+- `GameLive` today lets one browser play both colours (`?as=` and a flip
+  button). In a bot game the perspective is locked to the human's colour: `?as=`
+  is ignored, the flip button is hidden and `switch_perspective` is a no-op, so
+  the human can never send a move or resign as the bot.
+- `GameLive` shows `Seat.label/1` for bot seats and a "thinking…" indicator
+  while it is the bot's turn in an ongoing game (derived from game state). Draw
+  offers to the bot are declined by the server and the human sees the existing
+  decline state.
 
 ### Data flow
 
@@ -96,15 +101,17 @@ and dispatches `DeclineDraw` as the bot.
 
 ### Error handling
 
-- Availability check: `Bots.Stockfish.available?/0` (binary found and answers
-  `uciok`). Used by the controller before creating a bot game.
+- Availability check: `Bots.Stockfish.available?/0` (the binary resolves from
+  `STOCKFISH_PATH` or `PATH` and exists). Used by the controller before creating a bot game.
 - Bot call fails or times out mid-game: retry once, then log and stop. The game
-  stays playable (the human can resign or abandon it). `GameLive` shows a
-  "Computer unavailable" notice if the game is stuck on a bot turn.
+  stays playable (the human can resign or abandon it). v1 shows no separate
+  failure notice in the UI.
 - Bot returns an illegal move: the aggregate rejects `MakeMove`; the handler logs
   and does not retry the same move.
-- Handler is idempotent per node: it ignores a `MoveMade` if the node already has
-  a child by the bot, so event replay on restart does not double-move.
+- The bot's reply uses a node id derived from the node it replies to, so a
+  duplicate event delivery fails with `:node_id_taken` and cannot double-move.
+  The handler subscribes with `start_from: :current`, and the actual Stockfish
+  call runs in a supervised task so a slow search never blocks event handling.
 - Stockfish process crash: the pool restarts it.
 
 ### Provisioning
