@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture
 
 Forkmate is an online chess game built using CQRS and event sourcing on Phoenix (`Commanded`, `EventStore`, `commanded_ecto_projections`).
-See `docs/design-brainstorm.md` for background and future roadmap items (`Player`, `Challenge`/`Lobby`, `Tournament`). Feature specs and plans live in `docs/superpowers/specs/` and `docs/superpowers/plans/` (the play-vs-bot design is there).
+See `docs/design-brainstorm.md` for background and future roadmap items (`Player`, `Challenge`/`Lobby`, `Tournament`).
 The README's status line and Architecture section say the domain code doesn't exist yet. That is outdated; trust the code and this file.
 
 ### Core Domain & CQRS (`lib/forkmate/`)
