@@ -4,6 +4,7 @@ defmodule ForkmateWeb.GameLive do
   """
   use ForkmateWeb, :live_view
 
+  alias Forkmate.Bots.Seat
   alias Forkmate.Chess.{Position, Square}
   alias Forkmate.Games
   alias Forkmate.Games.Events.MoveMade
@@ -24,7 +25,7 @@ defmodule ForkmateWeb.GameLive do
          |> push_navigate(to: ~p"/")}
 
       game ->
-        perspective = parse_perspective(params["as"])
+        perspective = resolve_perspective(game, params)
 
         socket =
           socket
@@ -45,8 +46,6 @@ defmodule ForkmateWeb.GameLive do
 
   @impl true
   def handle_params(%{"id" => game_id} = params, _uri, socket) do
-    perspective = parse_perspective(params["as"])
-
     case Games.get_game(game_id) do
       nil ->
         {:noreply, push_navigate(socket, to: ~p"/")}
@@ -56,7 +55,7 @@ defmodule ForkmateWeb.GameLive do
 
         socket =
           socket
-          |> assign(perspective: perspective)
+          |> assign(perspective: resolve_perspective(game, params))
           |> load_game_state(game, node_id)
 
         {:noreply, socket}
@@ -121,8 +120,12 @@ defmodule ForkmateWeb.GameLive do
 
   @impl true
   def handle_event("switch_perspective", _params, socket) do
-    new_perspective = if socket.assigns.perspective == :white, do: :black, else: :white
-    {:noreply, assign(socket, perspective: new_perspective)}
+    if socket.assigns.bot_game do
+      {:noreply, socket}
+    else
+      new_perspective = if socket.assigns.perspective == :white, do: :black, else: :white
+      {:noreply, assign(socket, perspective: new_perspective)}
+    end
   end
 
   @impl true
@@ -254,6 +257,12 @@ defmodule ForkmateWeb.GameLive do
       socket.assigns.perspective => current_node_id
     }
 
+    bot_game = Seat.human_color(game.white_player_id, game.black_player_id) != nil
+
+    bot_thinking =
+      bot_game and game.status != "ended" and current_node_id == game.current_node_id and
+        active_turn != socket.assigns.perspective
+
     assign(socket,
       game: game,
       all_nodes: all_nodes,
@@ -265,8 +274,17 @@ defmodule ForkmateWeb.GameLive do
       active_turn: active_turn,
       last_move: last_move,
       check_square: current_node && current_node.check_square,
-      cursors: cursors
+      cursors: cursors,
+      bot_game: bot_game,
+      bot_thinking: bot_thinking
     )
+  end
+
+  # In a bot game the board is locked to the human's colour so the human can
+  # never act (move, resign, offer a draw) as the bot.
+  defp resolve_perspective(game, params) do
+    Seat.human_color(game.white_player_id, game.black_player_id) ||
+      parse_perspective(params["as"])
   end
 
   defp parse_perspective("black"), do: :black
@@ -308,6 +326,7 @@ defmodule ForkmateWeb.GameLive do
 
           <div class="flex items-center gap-3">
             <button
+              :if={!@bot_game}
               type="button"
               phx-click="switch_perspective"
               class="btn btn-sm btn-outline"
@@ -362,7 +381,7 @@ defmodule ForkmateWeb.GameLive do
 
             <div class="w-full max-w-xl flex flex-col gap-3">
               <GameComponents.player_card
-                name={top_player}
+                name={Seat.label(top_player)}
                 color={top_color}
                 active={@active_turn == top_color and @game.status != "ended"}
               />
@@ -383,10 +402,14 @@ defmodule ForkmateWeb.GameLive do
               </div>
 
               <GameComponents.player_card
-                name={bottom_player}
+                name={Seat.label(bottom_player)}
                 color={bottom_color}
                 active={@active_turn == bottom_color and @game.status != "ended"}
               />
+
+              <p :if={@bot_thinking} id="bot-thinking" class="text-sm text-base-content/60">
+                Computer is thinking…
+              </p>
 
               <div class="mt-2 flex items-center justify-between">
                 <GameComponents.game_controls

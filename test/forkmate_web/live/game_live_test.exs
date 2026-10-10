@@ -168,4 +168,85 @@ defmodule ForkmateWeb.GameLiveTest do
     assert html =~ "Fifty-move rule"
     refute html =~ "Stalemate"
   end
+
+  describe "bot games" do
+    alias Forkmate.Bots.Seat
+
+    defp bot_game(white, black) do
+      game_id = "live-bot-" <> Ecto.UUID.generate()
+
+      {:ok, ^game_id} =
+        Games.start_game(%{game_id: game_id, white_player_id: white, black_player_id: black})
+
+      game_id
+    end
+
+    defp click_move(view, from, to) do
+      view |> element("rect[phx-value-square='#{from}']") |> render_click()
+      view |> element("rect[phx-value-square='#{to}']") |> render_click()
+    end
+
+    test "shows the bot label and hides the flip button", %{conn: conn} do
+      game_id = bot_game("Player 1", Seat.new(:medium))
+      {:ok, view, html} = live(conn, ~p"/games/#{game_id}")
+
+      assert html =~ "Stockfish (Medium)"
+      refute has_element?(view, "button[phx-click='switch_perspective']")
+    end
+
+    test "keeps the flip button in human games", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/games/#{bot_game("Player 1", "Player 2")}")
+      assert has_element?(view, "button[phx-click='switch_perspective']")
+    end
+
+    test "?as= cannot make the human play the bot's side", %{conn: conn} do
+      # Human is White; asking for the Black perspective must be ignored.
+      game_id = bot_game("Player 1", Seat.new(:easy))
+      {:ok, view, _html} = live(conn, ~p"/games/#{game_id}?as=black")
+
+      click_move(view, "e2", "e4")
+      assert length(Games.list_nodes(game_id)) == 2
+    end
+
+    test "switch_perspective is ignored in a bot game", %{conn: conn} do
+      game_id = bot_game("Player 1", Seat.new(:easy))
+      {:ok, view, _html} = live(conn, ~p"/games/#{game_id}")
+
+      render_hook(view, "switch_perspective", %{})
+      click_move(view, "e2", "e4")
+      assert length(Games.list_nodes(game_id)) == 2
+    end
+
+    test "human cannot move the bot's pieces", %{conn: conn} do
+      # Human is Black, White (the bot) is to move: White pieces are not selectable.
+      game_id = bot_game(Seat.new(:easy), "Player 1")
+      {:ok, view, _html} = live(conn, ~p"/games/#{game_id}?as=white")
+
+      click_move(view, "e2", "e4")
+      assert length(Games.list_nodes(game_id)) == 1
+    end
+
+    test "human cannot resign as the bot", %{conn: conn} do
+      game_id = bot_game(Seat.new(:easy), "Player 1")
+      {:ok, view, _html} = live(conn, ~p"/games/#{game_id}?as=white")
+
+      render_hook(view, "resign", %{})
+      # The human (Black) resigned as themselves, not as the bot (White).
+      assert Games.get_game(game_id).winner == "white"
+    end
+
+    test "shows the thinking indicator while the bot is to move", %{conn: conn} do
+      game_id = bot_game(Seat.new(:easy), "Player 1")
+      {:ok, view, _html} = live(conn, ~p"/games/#{game_id}")
+      assert has_element?(view, "#bot-thinking")
+    end
+
+    test "no thinking indicator on the human's turn or in human games", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/games/#{bot_game("Player 1", Seat.new(:easy))}")
+      refute has_element?(view, "#bot-thinking")
+
+      {:ok, view, _html} = live(conn, ~p"/games/#{bot_game("Player 1", "Player 2")}")
+      refute has_element?(view, "#bot-thinking")
+    end
+  end
 end
